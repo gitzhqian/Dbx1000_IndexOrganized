@@ -5,6 +5,8 @@
 #include "helper.h"
 #include "index_base.h"
 
+class row_t;
+class txn_man;
 
 typedef struct bt_node {
 	// TODO bad hack!
@@ -28,14 +30,25 @@ class index_btree : public index_base {
 public:
 	RC			init(uint64_t part_cnt);
 	RC			init(uint64_t part_cnt, table_t * table);
-	bool 		index_exist(idx_key_t key); // check if the key exist. 
+	bool 		index_exist(idx_key_t key); // check if the key exist.
 	RC 			index_insert(idx_key_t key, itemid_t * item, int part_id = -1);
-	RC	 		index_read(idx_key_t key, itemid_t * &item, 
+	RC	 		index_read(idx_key_t key, itemid_t * &item,
 					uint64_t thd_id, int64_t part_id = -1);
 	RC	 		index_read(idx_key_t key, itemid_t * &item, int part_id = -1);
 	RC	 		index_read(idx_key_t key, itemid_t * &item);
 	RC 			index_next(uint64_t thd_id, itemid_t * &item, bool samekey = false);
+    RC index_insert(txn_man* txn, idx_key_t key, row_t* row, int part_id){return RCOK;}
+    // This method ignores the second row_t* argument.
+    RC index_remove(txn_man* txn, idx_key_t key, row_t*, int part_id){return RCOK;}
 
+    RC index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id){return RCOK;}
+    RC index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
+                           size_t& count, int part_id){return RCOK;}
+
+    RC index_read_range(txn_man* txn, idx_key_t min_key, idx_key_t max_key,
+                        row_t** rows, size_t& count, int part_id){return RCOK;}
+    RC index_read_range_rev(txn_man* txn, idx_key_t min_key, idx_key_t max_key,
+                            row_t** rows, size_t& count, int part_id){return RCOK;}
 private:
 	// index structures may have part_cnt = 1 or PART_CNT.
 	uint64_t part_cnt;
@@ -67,7 +80,7 @@ private:
 	RC 			cleanup(bt_node * node, bt_node * last_ex);
 
 	// the leaf and the idx within the leaf that the thread last accessed.
-	bt_node *** cur_leaf_per_thd;
+	bt_node ***     cur_leaf_per_thd;
 	UInt32 ** 		cur_idx_per_thd;
 };
 

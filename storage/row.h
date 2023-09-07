@@ -1,7 +1,8 @@
 #pragma once
 
 #include <cassert>
-#include "global.h"
+#include <global.h>
+
 
 #define USE_INLINED_DATA
 
@@ -54,6 +55,7 @@ class Row_silo;
 class Row_vll;
 
 class itemid_t;
+
 
 class row_t
 {

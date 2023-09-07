@@ -12,6 +12,7 @@ class base_query;
 class INDEX;
 class ARRAY_INDEX;
 class ORDERED_INDEX;
+class HASH_INDEX;
 class IndexMBTree;
 
 // each thread has a txn_man.
@@ -133,13 +134,13 @@ public:
 
 	// insert_row/remove_row
   bool insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& row_id);
-	bool remove_row(row_t* row);
+  bool remove_row(row_t* row);
 
 	// index_insert/index_remove
   template <typename IndexT>
-	bool insert_idx(IndexT* idx, idx_key_t key, row_t* row, int part_id);
+  bool insert_idx(IndexT* idx, uint64_t key, row_t* row, int part_id);
   template <typename IndexT>
-	bool remove_idx(IndexT* idx, idx_key_t key, row_t* row, int part_id);
+  bool remove_idx(IndexT* idx, uint64_t key, row_t* row, int part_id);
 
 	RC apply_index_changes(RC rc);
 
@@ -152,24 +153,24 @@ private:
 
 	// insert/remove indexes
 	uint64_t 		   insert_idx_cnt;
-	ORDERED_INDEX*   insert_idx_idx[MAX_ROW_PER_TXN];
+    HASH_INDEX*    insert_idx_idx[MAX_ROW_PER_TXN];
 	idx_key_t	     insert_idx_key[MAX_ROW_PER_TXN];
 	row_t* 		     insert_idx_row[MAX_ROW_PER_TXN];
 	int	       	   insert_idx_part_id[MAX_ROW_PER_TXN];
 
 	uint64_t 		   remove_idx_cnt;
-	ORDERED_INDEX*   remove_idx_idx[MAX_ROW_PER_TXN];
+    HASH_INDEX*   remove_idx_idx[MAX_ROW_PER_TXN];
 	idx_key_t	     remove_idx_key[MAX_ROW_PER_TXN];
 	int	      	   remove_idx_part_id[MAX_ROW_PER_TXN];
 
-        // node set for phantom avoidance
-        std::unordered_map<void*, uint64_t>  node_map;
-        friend class IndexHash;
-        friend class IndexArray;
-        friend class IndexMBTree;
-        friend class IndexMBTree_cb;
-        friend class IndexMICAMBTree;
-        friend class IndexMICAMBTree_cb;
+    // node set for phantom avoidance
+    std::unordered_map<void*, uint64_t>  node_map;
+    friend class IndexHash;
+    friend class IndexArray;
+    friend class IndexMBTree;
+    friend class IndexMBTree_cb;
+    friend class IndexMICAMBTree;
+    friend class IndexMICAMBTree_cb;
 
 	txnid_t 		txn_id;
 	ts_t 			timestamp;
@@ -190,4 +191,5 @@ private:
 #elif CC_ALG == HEKATON
 	RC 				validate_hekaton(RC rc);
 #endif
+
 };

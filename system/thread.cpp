@@ -1,5 +1,5 @@
-#define CONFIG_H "silo/config/config-perf.h"
-#include "silo/rcu.h"
+#define CONFIG_H "cicada-exp-sigmod2017-silo/config/config-perf.h"
+//#include "cicada-exp-sigmod2017-silo/rcu.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -171,9 +171,10 @@ RC thread_t::run() {
 #endif
 		if (rc == RCOK)
 		{
-#if RCU_ALLOC || INDEX_STRUCT != IDX_MICA
-		  scoped_rcu_region guard;
-#endif
+		    //RCU_ALLOC=false
+//#if RCU_ALLOC || INDEX_STRUCT != IDX_MICA
+//		  scoped_rcu_region guard;
+//#endif
 
 #if CC_ALG != VLL
 			if (WORKLOAD == TEST)

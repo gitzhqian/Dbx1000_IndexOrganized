@@ -1,7 +1,7 @@
 #define CONFIG_H "silo/config/config-perf.h"
 
 #define NDB_MASSTREE 1
-#include "silo/masstree/config.h"
+
 #include "silo/masstree_btree.h"
 
 #ifdef NDEBUG

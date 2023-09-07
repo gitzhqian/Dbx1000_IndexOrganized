@@ -3,14 +3,14 @@
 #include "tpcc.h"
 #include "wl.h"
 #include "thread.h"
-#include "table.h"
+#include "storage/table.h"
 #include "index_hash.h"
 #include "index_btree.h"
-#include "index_mbtree.h"
+//#include "index_mbtree.h"
 #include "index_mica.h"
-#include "index_mica_mbtree.h"
+//#include "index_mica_mbtree.h"
 #include "tpcc_helper.h"
-#include "row.h"
+#include "storage/row.h"
 #include "query.h"
 #include "txn.h"
 #include "mem_alloc.h"
@@ -20,7 +20,8 @@
 RC tpcc_wl::init() {
   workload::init();
 
-  string path = "./benchmarks/";
+//  string path = "./benchmarks/";
+  string path = "/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/benchmarks/";
   path += "TPCC_full_schema.txt";
   cout << "reading schema file: " << path << endl;
   init_schema(path.c_str());
@@ -46,12 +47,12 @@ RC tpcc_wl::init_schema(const char* schema_file) {
   i_warehouse = hash_indexes["HASH_WAREHOUSE_IDX"];
   i_district = hash_indexes["HASH_DISTRICT_IDX"];
   i_customer_id = hash_indexes["HASH_CUSTOMER_ID_IDX"];
-  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
+//  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
   i_stock = hash_indexes["HASH_STOCK_IDX"];
-  i_order = ordered_indexes["ORDERED_ORDER_IDX"];
-  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
-  i_neworder = ordered_indexes["ORDERED_NEWORDER_IDX"];
-  i_orderline = ordered_indexes["ORDERED_ORDERLINE_IDX"];
+  i_order = hash_indexes["HASH_ORDER_IDX"];
+//  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
+  i_neworder = hash_indexes["HASH_NEWORDER_IDX"];
+  i_orderline = hash_indexes["HASH_ORDERLINE_IDX"];
 
   return RCOK;
 }
@@ -332,8 +333,7 @@ void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
     row->set_value(C_PAYMENT_CNT, uint64_t(1));
     row->set_value(C_DELIVERY_CNT, uint64_t(0));
 
-    index_insert(i_customer_last, custNPKey(did, wid, c_last), row,
-                 wh_to_part(wid));
+//    index_insert(i_customer_last, custNPKey(did, wid, c_last), row, wh_to_part(wid));
     index_insert(i_customer_id, custKey(cid, did, wid), row, wh_to_part(wid));
   }
 }
@@ -389,8 +389,8 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
 
 #if TPCC_FULL
     index_insert(i_order, orderKey(oid, did, wid), row, wh_to_part(wid));
-    index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row,
-                 wh_to_part(wid));
+//    index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row,
+//                 wh_to_part(wid));
 #endif
 
     // ORDER-LINE
@@ -415,8 +415,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
       MakeAlphaString(24, 24, ol_dist_info, wid - 1);
       row->set_value(OL_DIST_INFO, ol_dist_info);
 #if TPCC_FULL
-      index_insert(i_orderline, orderlineKey(ol, oid, did, wid), row,
-                   wh_to_part(wid));
+      index_insert(i_orderline, orderlineKey(ol, oid, did, wid), row, wh_to_part(wid));
 #endif
     }
 
@@ -429,8 +428,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
       row->set_value(NO_W_ID, wid);
 
 #if TPCC_FULL
-      index_insert(i_neworder, neworderKey(oid, did, wid), row,
-                   wh_to_part(wid));
+      index_insert(i_neworder, neworderKey(oid, did, wid), row, wh_to_part(wid));
 #endif
     }
   }

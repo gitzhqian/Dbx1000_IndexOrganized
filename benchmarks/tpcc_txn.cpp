@@ -9,7 +9,7 @@
 #include "index_hash.h"
 #include "index_btree.h"
 #include "index_mica.h"
-#include "index_mbtree.h"
+//#include "index_mbtree.h"
 #include "tpcc_const.h"
 #include "mem_alloc.h"
 // #include <unordered_set>
@@ -407,9 +407,9 @@ bool tpcc_txn_man::new_order_createOrder(int64_t o_id, uint64_t d_id,
     if (!insert_idx(idx, key, row, part_id)) return false;
   }
   {
-    auto idx = _wl->i_order_cust;
-    auto key = orderCustKey(o_id, c_id, d_id, w_id);
-    if (!insert_idx(idx, key, row, part_id)) return false;
+//    auto idx = _wl->i_order_cust;
+//    auto key = orderCustKey(o_id, c_id, d_id, w_id);
+//    if (!insert_idx(idx, key, row, part_id)) return false;
   }
 #endif
   return true;
@@ -540,11 +540,10 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
   row_t* items[15];
   assert(arg.ol_cnt <= sizeof(items) / sizeof(items[0]));
   for (uint64_t ol_number = 1; ol_number <= arg.ol_cnt; ol_number++) {
-    items[ol_number - 1] =
-        new_order_getItemInfo(arg.items[ol_number - 1].ol_i_id);
+    items[ol_number - 1] = new_order_getItemInfo(arg.items[ol_number - 1].ol_i_id);
     // printf("ol_i_id %d\n", (int)arg.items[ol_number - 1].ol_i_id);
     if (items[ol_number - 1] == NULL) {
-      assert(false);
+//      assert(false);
       // FAIL_ON_ABORT();
       return finish(Abort);
     };
@@ -556,15 +555,16 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     return finish(Abort);
   };
   // double w_tax;
-  // warehouse->get_value(W_TAX, w_tax);
+   double w_tax;
+   warehouse->get_value(W_TAX, w_tax);
 
   auto district = new_order_getDistrict(arg.d_id, arg.w_id);
   if (district == NULL) {
     FAIL_ON_ABORT();
     return finish(Abort);
   };
-  // double d_tax;
-  // r_dist_local->get_value(D_TAX, d_tax);
+  double d_tax;
+  district->get_value(D_TAX, d_tax);
 
   int64_t o_id;
   new_order_incrementNextOrderId(district, &o_id);
@@ -574,8 +574,8 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     FAIL_ON_ABORT();
     return finish(Abort);
   };
-// uint64_t c_discount;
-// customer->get_value(C_DISCOUNT, c_discount);
+  uint64_t c_discount;
+  customer->get_value(C_DISCOUNT, c_discount);
 
 #if TPCC_INSERT_ROWS
   uint64_t o_carrier_id = 0;

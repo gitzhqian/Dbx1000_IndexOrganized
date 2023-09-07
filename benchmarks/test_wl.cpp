@@ -5,7 +5,7 @@
 #include "index_hash.h"
 #include "index_btree.h"
 #include "index_mica.h"
-#include "index_mica_mbtree.h"
+//#include "index_mica_mbtree.h"
 #include "thread.h"
 
 RC TestWorkload::init() {

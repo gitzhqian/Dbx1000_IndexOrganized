@@ -6,7 +6,7 @@
 #include "ycsb_query.h"
 #include "tpcc_query.h"
 #include "tpcc_helper.h"
-#include "tatp_query.h"
+//#include "tatp_query.h"
 
 /*************************************************/
 //     class Query_queue

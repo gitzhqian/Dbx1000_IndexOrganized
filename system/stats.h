@@ -1,5 +1,7 @@
 #pragma once
 
+#include <config.h>
+
 class Stats_thd {
 public:
 	void init(uint64_t thd_id);

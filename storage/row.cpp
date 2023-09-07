@@ -60,7 +60,7 @@ row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
 			continue;
 		}
 		_row_id = rah.row_id();
-                data = rah.data();
+		data = rah.data();
 #else
 		MICARowAccessHandle rah(&tx);
                 _row_id = MICATransaction::kNewRowID;

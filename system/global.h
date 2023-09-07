@@ -20,6 +20,12 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <cicada-engine/util/barrier.h>
+#include <cicada-engine/transaction/page_pool.h>
+#include <cicada-engine/transaction/table_mica.h>
+#include <cicada-engine/transaction/row_mica.h>
+#include <cicada-engine/transaction/row_access.h>
+#include <cicada-engine/transaction/transaction.h>
 
 #include "pthread.h"
 #include "config.h"
@@ -31,7 +37,7 @@
 
 #if CC_ALG == MICA
 #define NDEBUG
-#include "mica/transaction/db.h"
+#include "cicada-engine/transaction/db.h"
 #undef NDEBUG
 struct DBConfig : public ::mica::transaction::BasicDBConfig {
   // static constexpr bool kVerbose = true;
@@ -102,8 +108,8 @@ typedef ::mica::transaction::RowAccessHandlePeekOnly<DBConfig> MICARowAccessHand
 typedef ::mica::transaction::Transaction<DBConfig> MICATransaction;
 typedef ::mica::transaction::Result MICAResult;
 #else
-#include "mica/util/stopwatch.h"
-#include "mica/util/latency.h"
+#include "cicada-engine/util/stopwatch.h"
+#include "cicada-engine/util/latency.h"
 #endif
 
 using namespace std;
@@ -246,9 +252,9 @@ enum TsType {R_REQ, W_REQ, P_REQ, XP_REQ};
 #else  // IDX_HASH
 
 #define HASH_INDEX		IndexHash
-// #define ORDERED_INDEX		index_btree
+#define ORDERED_INDEX	index_btree
 #define ARRAY_INDEX		IndexArray
-#define ORDERED_INDEX		IndexMBTree
+//#define ORDERED_INDEX		IndexMBTree
 #endif
 
 /************************************************/

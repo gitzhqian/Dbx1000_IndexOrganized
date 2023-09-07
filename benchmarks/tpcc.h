@@ -36,10 +36,10 @@ class tpcc_wl : public workload {
   HASH_INDEX* i_customer_id;
   HASH_INDEX* i_customer_last;
   HASH_INDEX* i_stock;
-  ORDERED_INDEX* i_order;
+    HASH_INDEX* i_order;
   ORDERED_INDEX* i_order_cust;
-  ORDERED_INDEX* i_neworder;
-  ORDERED_INDEX* i_orderline;
+    HASH_INDEX* i_neworder;
+    HASH_INDEX* i_orderline;
 
   bool** delivering;
   uint32_t next_tid;

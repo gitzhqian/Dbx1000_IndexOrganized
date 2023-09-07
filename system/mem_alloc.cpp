@@ -1,5 +1,5 @@
-#define CONFIG_H "silo/config/config-perf.h"
-#include "silo/rcu.h"
+#define CONFIG_H "cicada-exp-sigmod2017-silo/config/config-perf.h"
+#include "cicada-exp-sigmod2017-silo/rcu.h"
 
 #ifdef NDEBUG
 #undef NDEBUG
@@ -27,21 +27,21 @@ void mem_alloc::init(uint64_t part_cnt, uint64_t bytes_per_part) {
   // }
 
   if (RCU_ALLOC) {
-    const size_t maxpercpu = util::iceil((RCU_ALLOC_SIZE) / g_thread_cnt,
-                                         ::allocator::GetHugepageSize());
-    ::allocator::Initialize(g_thread_cnt, maxpercpu);
-
-    std::vector<std::thread> threads;
-    for (uint64_t thread_id = 0; thread_id < g_thread_cnt; thread_id++) {
-      threads.emplace_back([&, thread_id] {
-        rcu::s_instance.pin_current_thread(thread_id);
-        rcu::s_instance.fault_region();
-      });
-    }
-    while (threads.size() > 0) {
-      threads.back().join();
-      threads.pop_back();
-    }
+//    const size_t maxpercpu = util::iceil((RCU_ALLOC_SIZE) / g_thread_cnt,
+//                                         ::allocator::GetHugepageSize());
+//    ::allocator::Initialize(g_thread_cnt, maxpercpu);
+//
+//    std::vector<std::thread> threads;
+//    for (uint64_t thread_id = 0; thread_id < g_thread_cnt; thread_id++) {
+//      threads.emplace_back([&, thread_id] {
+//        rcu::s_instance.pin_current_thread(thread_id);
+//        rcu::s_instance.fault_region();
+//      });
+//    }
+//    while (threads.size() > 0) {
+//      threads.back().join();
+//      threads.pop_back();
+//    }
   }
 }
 

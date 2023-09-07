@@ -1,6 +1,7 @@
 #pragma once
 
-#include "global.h"
+#include <global.h>
+
 
 // TODO sequential scan is not supported yet.
 // only index access is supported for table.
@@ -23,16 +24,16 @@ public:
 	Catalog * get_schema() { return schema; };
 	const char * get_table_name() { return table_name; };
 
-	Catalog * 		schema;
+	Catalog * 		schema{};
 
 #if CC_ALG == MICA
-	MICADB* mica_db;
-	std::vector<MICATable*> mica_tbl;
+	MICADB* mica_db{};
+	std::vector<MICATable*> mica_tbl{};
 #endif
 
 private:
 	const char * 	table_name;
 	// uint64_t  		cur_tab_size;
-	uint64_t part_cnt;
+	uint64_t        part_cnt;
 	char 			pad[CL_SIZE - sizeof(void *)*3];
 };

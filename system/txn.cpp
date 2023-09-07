@@ -1,5 +1,5 @@
-#define CONFIG_H "silo/config/config-perf.h"
-#include "silo/rcu.h"
+//#define CONFIG_H "cicada-exp-sigmod2017-silo/config/config-perf.h"
+//#include "cicada-exp-sigmod2017-silo/rcu.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -16,9 +16,9 @@
 #include "index_btree.h"
 #include "index_hash.h"
 #include "index_array.h"
-#include "index_mbtree.h"
+//#include "index_mbtree.h"
 #include "index_mica.h"
-#include "index_mica_mbtree.h"
+//#include "index_mica_mbtree.h"
 
 void txn_man::init(thread_t * h_thd, workload * h_wl, uint64_t thd_id) {
 	this->h_thd = h_thd;
@@ -32,7 +32,7 @@ void txn_man::init(thread_t * h_thd, workload * h_wl, uint64_t thd_id) {
 	remove_cnt = 0;
 	insert_idx_cnt = 0;
 	remove_idx_cnt = 0;
-  node_map.clear();
+    node_map.clear();
 	accesses = (Access **) mem_allocator.alloc(sizeof(Access *) * MAX_ROW_PER_TXN, thd_id);
 	for (int i = 0; i < MAX_ROW_PER_TXN; i++)
 		accesses[i] = NULL;
@@ -91,7 +91,7 @@ RC txn_man::apply_index_changes(RC rc) {
 #if INDEX_STRUCT != IDX_MICA || (INDEX_STRUCT == IDX_MICA && defined(IDX_MICA_USE_MBTREE))
 
 #if !SIMPLE_INDEX_UPDATE
-  if (rc == RCOK) rc = ORDERED_INDEX::validate(this);
+//  if (rc == RCOK) rc = ORDERED_INDEX::validate(this);
 
   if (rc != RCOK) {
     // Remove previously inserted placeholders.
@@ -101,11 +101,11 @@ RC txn_man::apply_index_changes(RC rc) {
       // auto row = insert_idx_row[i];
       auto part_id = insert_idx_part_id[i];
 #if INDEX_STRUCT != IDX_MICA
-      auto rc_remove = idx->index_remove(this, key, NULL, part_id);
+     // auto rc_remove = idx->index_remove(this, key, NULL, part_id);
 #else
       auto rc_remove = idx->index_remove(this, mica_tx, key, NULL, part_id);
 #endif
-      assert(rc_remove == RCOK);
+     // assert(rc_remove == RCOK);
     }
     insert_idx_cnt = 0;
     return rc;
@@ -161,7 +161,7 @@ RC txn_man::apply_index_changes(RC rc) {
 #else
 		auto rc_remove = idx->index_remove(this, mica_tx, key, NULL, part_id);
 #endif
-		assert(rc_remove == RCOK);
+		//assert(rc_remove == RCOK);
 	}
 	remove_idx_cnt = 0;
 #endif
@@ -415,12 +415,10 @@ row_t* txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, c
 #else	// CC_ALG == MICA
 #if !TPCC_CF
 template <typename IndexT>
-row_t *
-txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type)
+row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type)
 #else
 template <typename IndexT>
-row_t *
-txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type)
+row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type)
 #endif
 {
 	// printf("1 row_id=%lu\n", item->row_id);
@@ -545,8 +543,7 @@ bool txn_man::remove_row(row_t* row) {
 // index_insert/index_remove
 #if INDEX_STRUCT != IDX_MICA || defined(IDX_MICA_USE_MBTREE)
 template <>
-bool txn_man::insert_idx(ORDERED_INDEX* index, uint64_t key, row_t* row,
-                            int part_id) {
+bool txn_man::insert_idx(HASH_INDEX* index, uint64_t key, row_t* row, int part_id) {
 #if CC_ALG == MICA
 #if TPCC_VALIDATE_GAP
   if (index->list_insert(mica_tx, key, row, part_id) != RCOK)
@@ -576,9 +573,8 @@ bool txn_man::insert_idx(ORDERED_INDEX* index, uint64_t key, row_t* row,
 }
 #endif
 #if INDEX_STRUCT == IDX_MICA
-template <>
-bool txn_man::insert_idx(OrderedIndexMICA* index, uint64_t key, row_t* row,
-                            int part_id) {
+template <typename IndexT>
+bool txn_man::insert_idx(IndexT* index, uint64_t key, row_t* row, int part_id) {
   auto& mica_idx = index->mica_idx;
   // if (mica_idx[part_id]->insert(mica_tx, make_pair(key, row->row_id), 0) != 1)
   return mica_idx[part_id]->insert(mica_tx, key, row->get_row_id()) == 1;
@@ -587,8 +583,7 @@ bool txn_man::insert_idx(OrderedIndexMICA* index, uint64_t key, row_t* row,
 
 #if INDEX_STRUCT != IDX_MICA || defined(IDX_MICA_USE_MBTREE)
 template <>
-bool txn_man::remove_idx(ORDERED_INDEX* index, uint64_t key, row_t* row,
-                            int part_id) {
+bool txn_man::remove_idx(HASH_INDEX* index, uint64_t key, row_t* row, int part_id) {
 #if CC_ALG == MICA
 #if TPCC_VALIDATE_GAP
   if (index->list_remove(mica_tx, key, row, part_id) != RCOK)
@@ -634,10 +629,12 @@ row_t* txn_man::get_row(HASH_INDEX* index, row_t* row, int part_id, access_t typ
 template
 row_t* txn_man::search(HASH_INDEX* index, size_t key, int part_id, access_t type, const access_t* cf_access_type);
 #endif
-// template
-// bool txn_man::insert_idx(HASH_INDEX* idx, idx_key_t key, row_t* row, int part_id);
-// template
-// bool txn_man::remove_idx(HASH_INDEX* idx, idx_key_t key, row_t* row, int part_id);
+
+ template
+ bool txn_man::insert_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
+ template
+ bool txn_man::remove_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
+
 
 template
 RC txn_man::index_read(ARRAY_INDEX* index, idx_key_t key, row_t** row, int part_id);

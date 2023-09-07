@@ -6,9 +6,9 @@
 #include "index_hash.h"
 #include "index_array.h"
 #include "index_btree.h"
-#include "index_mbtree.h"
+//#include "index_mbtree.h"
 #include "index_mica.h"
-#include "index_mica_mbtree.h"
+//#include "index_mica_mbtree.h"
 #include "catalog.h"
 #include "mem_alloc.h"
 #include <thread>
@@ -21,12 +21,13 @@ void workload::init_mica() {
   printf("detected CPU frequency = %.3f GHz\n", gCPUFreq);
 
 #if CC_ALG == MICA
-  auto config = ::mica::util::Config::load_file("mica.json");
+  auto config = ::mica::util::Config::load_file("/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/mica.json");
   mica_alloc = new MICAAlloc(config.get("alloc"));
-  auto page_pool_size = 32 * uint64_t(1073741824);  // 32 GiB
-  mica_page_pools[0] = new MICAPagePool(mica_alloc, page_pool_size / 2, 0);
-  mica_page_pools[1] = new MICAPagePool(mica_alloc, page_pool_size / 2, 1);
-  mica_logger = new MICALogger();
+//  auto page_pool_size = 32 * uint64_t(1073741824);  // 32 GiB,  20warehouse=10GB
+  auto page_pool_size = 8 * uint64_t(1073741824);
+  mica_page_pools[0] = new MICAPagePool(mica_alloc, page_pool_size / 2, 0);  // 32GB/2=16GB
+//  mica_page_pools[1] = new MICAPagePool(mica_alloc, page_pool_size / 2, 1);
+//  mica_logger = new MICALogger();
   mica_db = new MICADB(mica_page_pools, mica_logger, &mica_sw, g_thread_cnt);
   printf("MICA initialized\n");
 #endif
@@ -168,12 +169,11 @@ RC workload::init_schema(string schema_file) {
 #endif
 
       if (strncmp(iname.c_str(), "ORDERED_", 8) == 0) {
-        ORDERED_INDEX* index =
-            (ORDERED_INDEX*)mem_allocator.alloc(sizeof(ORDERED_INDEX), -1);
-        new (index) ORDERED_INDEX();
+        //ORDERED_INDEX* index = (ORDERED_INDEX*)mem_allocator.alloc(sizeof(ORDERED_INDEX), -1);
+        //new (index) ORDERED_INDEX();
 
-        index->init(part_cnt, tables[tname]);
-        ordered_indexes[iname] = index;
+       // index->init(part_cnt, tables[tname]);
+       // ordered_indexes[iname] = index;
       } else if (strncmp(iname.c_str(), "ARRAY_", 6) == 0) {
         ARRAY_INDEX* index = (ARRAY_INDEX*)mem_allocator.alloc(sizeof(ARRAY_INDEX), -1);
         new (index) ARRAY_INDEX();
@@ -267,8 +267,8 @@ void workload::index_insert(IndexMBTree* index, uint64_t key, row_t* row,
   row = (row_t*)row->get_row_id();
 #endif
 
-  auto rc = index->index_insert(NULL, key, row, part_id);
-  assert(rc == RCOK);
+//  auto rc = index->index_insert(NULL, key, row, part_id);
+//  assert(rc == RCOK);
 }
 
 template void workload::index_insert(HASH_INDEX* index, uint64_t key, row_t* row,

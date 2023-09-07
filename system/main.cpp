@@ -1,7 +1,7 @@
 #include "global.h"
 #include "ycsb.h"
 #include "tpcc.h"
-#include "tatp.h"
+//#include "tatp.h"
 #include "test.h"
 #include "thread.h"
 #include "manager.h"
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
       m_wl = new tpcc_wl;
       break;
     case TATP:
-      m_wl = new tatp_wl;
+//      m_wl = new tatp_wl;
       break;
     case TEST:
       m_wl = new TestWorkload;
@@ -67,88 +67,88 @@ int main(int argc, char* argv[]) {
   m_wl->init();
   printf("workload initialized!\n");
 
-#if CC_ALG == MICA
-  {
-    std::vector<std::thread> threads;
-    for (uint64_t thread_id = 0; thread_id < g_thread_cnt; thread_id++) {
-      threads.emplace_back([&, thread_id] {
-        ::mica::util::lcore.pin_thread(thread_id);
-        mem_allocator.register_thread(thread_id);
-
-        m_wl->mica_db->activate(thread_id);
-
-        for (auto it : m_wl->tables) {
-          auto table = it.second;
-          uint64_t part_id = 0;
-          for (auto mica_tbl : table->mica_tbl) {
-            if ((part_id++) % g_thread_cnt != thread_id) continue;
-
-            uint64_t i = 0;
-            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
-                                 static_cast<uint64_t>(-1), false);
-
-            if (thread_id == 0) {
-              printf("thread %2" PRIu64 ": table %s part%2" PRIu64 ":\n",
-                     thread_id, it.first.c_str(), part_id - 1);
-              mica_tbl->print_table_status();
-            }
-          }
-        }
-
-#if INDEX_STRUCT == IDX_MICA
-        for (auto it : m_wl->hash_indexes) {
-          auto index = it.second;
-          uint64_t part_id = 0;
-          for (auto idx : index->mica_idx) {
-            if ((part_id++) % g_thread_cnt != thread_id) continue;
-
-            auto mica_tbl = idx->index_table();
-
-            uint64_t i = 0;
-            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
-                                 static_cast<uint64_t>(-1), false);
-
-            if (thread_id == 0) {
-              printf("thread %2" PRIu64 ": index %s part %2" PRIu64 ":\n",
-                     thread_id, it.first.c_str(), part_id - 1);
-              mica_tbl->print_table_status();
-            }
-          }
-        }
-#ifndef IDX_MICA_USE_MBTREE
-        for (auto it : m_wl->ordered_indexes) {
-          auto index = it.second;
-          uint64_t part_id = 0;
-          for (auto idx : index->mica_idx) {
-            if ((part_id++) % g_thread_cnt != thread_id) continue;
-
-            auto mica_tbl = idx->index_table();
-
-            uint64_t i = 0;
-            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
-                                 static_cast<uint64_t>(-1), false);
-
-            if (thread_id == 0) {
-              printf("thread %2" PRIu64 ": index %s part %2" PRIu64 ":\n",
-                     thread_id, it.first.c_str(), part_id - 1);
-              mica_tbl->print_table_status();
-            }
-          }
-        }
-#endif
-#endif
-
-        m_wl->mica_db->deactivate(thread_id);
-      });
-    }
-    while (threads.size() > 0) {
-      threads.back().join();
-      threads.pop_back();
-    }
-
-    printf("MICA tables renewed\n");
-  }
-#endif
+//#if CC_ALG == MICA
+//  {
+//    std::vector<std::thread> threads;
+//    for (uint64_t thread_id = 0; thread_id < g_thread_cnt; thread_id++) {
+//      threads.emplace_back([&, thread_id] {
+//        ::mica::util::lcore.pin_thread(thread_id);
+//        mem_allocator.register_thread(thread_id);
+//
+//        m_wl->mica_db->activate(thread_id);
+//
+//        for (auto it : m_wl->tables) {
+//          auto table = it.second;
+//          uint64_t part_id = 0;
+//          for (auto mica_tbl : table->mica_tbl) {
+//            if ((part_id++) % g_thread_cnt != thread_id) continue;
+//
+//            uint64_t i = 0;
+//            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
+//                                 static_cast<uint64_t>(-1), false);
+//
+//            if (thread_id == 0) {
+//              printf("thread %2" PRIu64 ": table %s part%2" PRIu64 ":\n",
+//                     thread_id, it.first.c_str(), part_id - 1);
+//              mica_tbl->print_table_status();
+//            }
+//          }
+//        }
+//
+//#if INDEX_STRUCT == IDX_MICA
+//        for (auto it : m_wl->hash_indexes) {
+//          auto index = it.second;
+//          uint64_t part_id = 0;
+//          for (auto idx : index->mica_idx) {
+//            if ((part_id++) % g_thread_cnt != thread_id) continue;
+//
+//            auto mica_tbl = idx->index_table();
+//
+//            uint64_t i = 0;
+//            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
+//                                 static_cast<uint64_t>(-1), false);
+//
+//            if (thread_id == 0) {
+//              printf("thread %2" PRIu64 ": index %s part %2" PRIu64 ":\n",
+//                     thread_id, it.first.c_str(), part_id - 1);
+//              mica_tbl->print_table_status();
+//            }
+//          }
+//        }
+//#ifndef IDX_MICA_USE_MBTREE
+//        for (auto it : m_wl->ordered_indexes) {
+//          auto index = it.second;
+//          uint64_t part_id = 0;
+//          for (auto idx : index->mica_idx) {
+//            if ((part_id++) % g_thread_cnt != thread_id) continue;
+//
+//            auto mica_tbl = idx->index_table();
+//
+//            uint64_t i = 0;
+//            mica_tbl->renew_rows(m_wl->mica_db->context(thread_id), 0, i,
+//                                 static_cast<uint64_t>(-1), false);
+//
+//            if (thread_id == 0) {
+//              printf("thread %2" PRIu64 ": index %s part %2" PRIu64 ":\n",
+//                     thread_id, it.first.c_str(), part_id - 1);
+//              mica_tbl->print_table_status();
+//            }
+//          }
+//        }
+//#endif
+//#endif
+//
+//        m_wl->mica_db->deactivate(thread_id);
+//      });
+//    }
+//    while (threads.size() > 0) {
+//      threads.back().join();
+//      threads.pop_back();
+//    }
+//
+//    printf("MICA tables renewed\n");
+//  }
+//#endif
 
   uint64_t thd_cnt = g_thread_cnt;
   pthread_t p_thds[thd_cnt - 1];
@@ -272,7 +272,7 @@ int main(int argc, char* argv[]) {
   m_wl->mica_db->print_pool_status();
 
   m_wl->mica_page_pools[0]->print_status();
-  m_wl->mica_page_pools[1]->print_status();
+//  m_wl->mica_page_pools[1]->print_status();
 
   ::mica::util::Latency inter_commit_latency;
   for (uint32_t i = 0; i < thd_cnt; i++)

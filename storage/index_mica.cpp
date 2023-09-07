@@ -143,7 +143,7 @@ RC IndexMICAGeneric<MICAIndex>::index_read(txn_man* txn, idx_key_t key,
   bool skip_validation = !(MICA_FULLINDEX);
 
   auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                       [&row](auto& key, auto value) {
+                                       [&row](uint64_t key, uint64_t value) {
                                          *row = (row_t*)value;
                                          return false;
                                        });
@@ -162,7 +162,7 @@ RC IndexMICAGeneric<MICAIndex>::index_read_multiple(txn_man* txn, idx_key_t key,
 
   uint64_t i = 0;
   uint64_t ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                           [&i, rows, count](auto& k, auto v) {
+                                           [&i, rows, count](uint64_t k, uint64_t v) {
                                              rows[i++] = (row_t*)v;
                                              // printf("%" PRIu64 "\n", i);
                                              return i < count;
@@ -236,7 +236,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read(txn_man* txn, idx_key_t key,
   //               return false;
   //             });
   auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                       [&key, &row](auto& k, auto v) {
+                                       [&key, &row](uint64_t k, uint64_t v) {
                                          *row = (row_t*)v;
                                          return false;
                                        });
@@ -269,7 +269,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_multiple(
   //                 return false;
   //             });
   uint64_t ret = mica_idx[part_id]->lookup(
-      tx, key, skip_validation, [&key, &i, rows, count](auto& k, auto v) {
+      tx, key, skip_validation, [&key, &i, rows, count](uint64_t k, uint64_t v) {
         rows[i++] = (row_t*)v;
         return i < count;
       });
@@ -304,7 +304,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range(
       mica_idx[part_id]
           ->lookup<BTreeRangeType::kInclusive, BTreeRangeType::kInclusive,
                    false>(tx, min_key, max_key, skip_validation,
-                          [&i, rows, count](auto& k, auto v) {
+                          [&i, rows, count](uint64_t k, uint64_t v) {
                             rows[i++] = (row_t*)v;
                             return i < count;
                           });
@@ -339,7 +339,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range_rev(
       mica_idx[part_id]
           ->lookup<BTreeRangeType::kInclusive, BTreeRangeType::kInclusive,
                    true>(tx, min_key, max_key, skip_validation,
-                         [&i, rows, count](auto& k, auto v) {
+                         [&i, rows, count](uint64_t k, uint64_t v) {
                            rows[i++] = (row_t*)v;
                            return i < count;
                          });
