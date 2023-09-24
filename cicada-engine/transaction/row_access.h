@@ -51,20 +51,21 @@ class RowAccessHandle {
 
   template <
       class DataCopier = typename Transaction<StaticConfig>::TrivialDataCopier>
-  bool new_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
+  bool new_row(uint64_t idx_key, bool new_aggressive_row,
+               Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
                bool check_dup_access, uint64_t data_size,
                const DataCopier& data_copier = DataCopier()) {
-    return tx_->new_row(*this, tbl, cf_id, row_id, check_dup_access, data_size,
+    return tx_->new_row(idx_key, new_aggressive_row, *this,
+                        tbl, cf_id, row_id, check_dup_access, data_size,
                         data_copier);
   }
   void prefetch_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
                     uint64_t off, uint64_t len) {
     tx_->prefetch_row(tbl, cf_id, row_id, off, len);
   }
-  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
+  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, void *row_head,
                 bool check_dup_access, bool read_hint, bool write_hint) {
-    return tx_->peek_row(*this, tbl, cf_id, row_id, check_dup_access, read_hint,
-                         write_hint);
+    return tx_->peek_row(*this, tbl, cf_id, row_id, row_head, check_dup_access, read_hint, write_hint);
   }
   template <
       class DataCopier = typename Transaction<StaticConfig>::TrivialDataCopier>
@@ -121,6 +122,13 @@ class RowAccessHandle {
       return access_item_->write_rv->data;
     else
       return nullptr;
+  }
+
+  char* ah_data() {
+    if (access_item_->head != nullptr)
+        return access_item_->head->inlined_rv->data;
+    else
+        return nullptr;
   }
 
   uint64_t size() const { return access_item_->tbl->data_size(); }
@@ -183,11 +191,11 @@ class RowAccessHandlePeekOnly {
                     uint64_t off, uint64_t len) {
     tx_->prefetch_row(tbl, cf_id, row_id, off, len);
   }
-  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
+  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, void *row_haed,
                 bool check_dup_access, bool read_hint, bool write_hint) {
     (void)read_hint;
     (void)write_hint;
-    return tx_->peek_row(*this, tbl, cf_id, row_id, check_dup_access);
+    return tx_->peek_row(*this, tbl, cf_id, row_id, row_haed, check_dup_access);
   }
   template <
       class DataCopier = typename Transaction<StaticConfig>::TrivialDataCopier>
@@ -287,6 +295,7 @@ struct RowAccessItem {
   RowCommon<StaticConfig>* newer_rv;
   RowVersion<StaticConfig>* write_rv;
   RowVersion<StaticConfig>* read_rv;
+  AggressiveRowHead<StaticConfig>* row_head;
 
   // typename StaticConfig::Timestamp latest_wts;
 };

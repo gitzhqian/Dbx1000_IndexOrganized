@@ -249,7 +249,8 @@ int main(int argc, char* argv[]) {
 
   if (WORKLOAD != TEST) {
     printf("PASS! SimTime = %ld\n", endtime - starttime);
-    if (STATS_ENABLE) stats.print((double)(endtime - starttime) / 1000000000.);
+//    if (STATS_ENABLE) stats.print((double)(endtime - starttime) / 1000000000.);
+    if (STATS_ENABLE) stats.print(1.0 * (endtime - starttime) / 1000000000UL);
   } else {
     ((TestWorkload*)m_wl)->summarize();
   }
@@ -258,20 +259,20 @@ int main(int argc, char* argv[]) {
   double t = (double)(endtime - starttime) / 1000000000.;
   m_wl->mica_db->print_stats(t, t * thd_cnt);
 
-  for (auto it : m_wl->tables) {
-    auto table = it.second;
-    uint64_t part_id = 0;
-    for (auto mica_tbl : table->mica_tbl) {
-      printf("table %s part%2" PRIu64 ":\n", it.first.c_str(), part_id);
-      mica_tbl->print_table_status();
-      // printf("\n");
-      part_id++;
-    }
-  }
+//  for (auto it : m_wl->tables) {
+//    auto table = it.second;
+//    uint64_t part_id = 0;
+//    for (auto mica_tbl : table->mica_tbl) {
+//      printf("table %s part%2" PRIu64 ":\n", it.first.c_str(), part_id);
+//      mica_tbl->print_table_status();
+//      // printf("\n");
+//      part_id++;
+//    }
+//  }
 
-  m_wl->mica_db->print_pool_status();
+//  m_wl->mica_db->print_pool_status();
 
-  m_wl->mica_page_pools[0]->print_status();
+//  m_wl->mica_page_pools[0]->print_status();
 //  m_wl->mica_page_pools[1]->print_status();
 
   ::mica::util::Latency inter_commit_latency;

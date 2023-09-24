@@ -66,16 +66,17 @@ class Transaction {
   };
 
   template <class DataCopier>
-  bool new_row(RAH& rah, Table<StaticConfig>* tbl, uint16_t cf_id,
+  bool new_row(uint64_t idx_key, bool aggressive_get_new_row, RAH& rah,
+               Table<StaticConfig>* tbl, uint16_t cf_id,
                uint64_t row_id, bool check_dup_access,
                uint64_t data_size, const DataCopier& data_copier);
   void prefetch_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
                     uint64_t off, uint64_t len);
   bool peek_row(RAH& rah, Table<StaticConfig>* tbl, uint16_t cf_id,
-                uint64_t row_id, bool check_dup_access, bool read_hint,
+                uint64_t row_id, void *row_head, bool check_dup_access, bool read_hint,
                 bool write_hint);
   bool peek_row(RAHPO& rah, Table<StaticConfig>* tbl, uint16_t cf_id,
-                uint64_t row_id, bool check_dup_access);
+                uint64_t row_id,void *row_head,  bool check_dup_access);
   template <class DataCopier>
   bool read_row(RAH& rah, const DataCopier& data_copier);
   template <class DataCopier>
@@ -86,8 +87,8 @@ class Transaction {
   struct NoopWriteFunc {
     bool operator()() const { return true; }
   };
-  template <class WriteFunc = NoopWriteFunc>
-  bool commit(Result* detail = nullptr,
+  template <class WriteFunc = NoopWriteFunc, typename Func>
+  bool commit(const Func& func, Result* detail = nullptr,
               const WriteFunc& write_func = WriteFunc());
   bool abort(bool skip_backoff = false);
 
@@ -116,10 +117,10 @@ class Transaction {
  protected:
   // transaction_impl/operation.h
   template <bool ForRead, bool ForWrite, bool ForValidation>
-  void locate(RowCommon<StaticConfig>*& newer_rv,
-              RowVersion<StaticConfig>*& rv);
-  bool insert_version_deferred();
-  RowVersionStatus wait_for_pending(RowVersion<StaticConfig>* rv);
+  void locate(RowCommon<StaticConfig>*& newer_rv, RowVersion<StaticConfig>*& rv);
+  template <typename Func>
+  bool insert_version_deferred(const Func& func = Func());
+  RowVersionStatus wait_for_pending_danging(RowVersion<StaticConfig>* rv);
   void insert_row_deferred();
 
   void reserve(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
@@ -187,6 +188,7 @@ class Transaction {
     bool write_hint;
   };
   std::vector<ReserveItem> to_reserve_;
+
 };
 }
 }

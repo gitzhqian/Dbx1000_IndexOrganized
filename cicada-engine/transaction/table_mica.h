@@ -47,6 +47,8 @@ class Table {
 
   const RowHead<StaticConfig>* head(uint16_t cf_id, uint64_t row_id) const;
 
+  AggressiveRowHead<StaticConfig>* idx_head(uint16_t cf_id, uint64_t row_id);
+
   RowHead<StaticConfig>* alt_head(uint16_t cf_id, uint64_t row_id);
 
   RowGCInfo<StaticConfig>* gc_info(uint16_t cf_id, uint64_t row_id);
@@ -66,6 +68,21 @@ class Table {
             uint64_t len, const Func& f);
 
   void print_table_status() const;
+
+  uint64_t  get_table_total_th_size(){ return total_rh_size_;}
+
+  void add_idx_hash(HashIndex<StaticConfig, false, uint64_t>* idx_hash)
+  {
+      idx_hashs.push_back(idx_hash);
+  }
+  HashIndex<StaticConfig, false, uint64_t>* get_idx_hash(uint64_t idx){
+      HashIndex<StaticConfig, false, uint64_t>* hash_idx = nullptr;
+      if (idx_hashs.size() > 0 ){
+          hash_idx = idx_hashs[idx];
+      }
+      return hash_idx;
+  }
+  std::vector<HashIndex<StaticConfig, false, uint64_t>*> idx_hashs{};
 
  private:
   DB<StaticConfig>* db_;
@@ -98,6 +115,7 @@ class Table {
 
   volatile uint32_t lock_ __attribute__((aligned(64)));
   uint64_t row_count_;
+
 } __attribute__((aligned(64)));
 }
 }

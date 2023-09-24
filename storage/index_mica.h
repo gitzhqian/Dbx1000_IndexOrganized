@@ -21,8 +21,8 @@ class IndexMICAGeneric : public index_base {
   RC index_remove(txn_man* txn, MICATransaction* tx, idx_key_t key, row_t* row,
                   int part_id);
 
-  RC index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id);
-  RC index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
+  RC index_read(txn_man* txn, idx_key_t key, void** row, int part_id);
+  RC index_read_multiple(txn_man* txn, idx_key_t key, void** rows,
                          size_t& count, int part_id);
 
   RC index_read_range(txn_man* txn, idx_key_t min_key, idx_key_t max_key,

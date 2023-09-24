@@ -17,8 +17,8 @@ uint64_t custKey(uint64_t c_id, uint64_t c_d_id, uint64_t c_w_id) {
 }
 
 uint64_t custNPKey(uint64_t c_d_id, uint64_t c_w_id, const char* c_last) {
-//  return CityHash64(c_last, strlen(c_last)) * g_num_wh * DIST_PER_WARE +
-//         distKey(c_d_id, c_w_id);
+  return CityHash64(c_last, strlen(c_last)) * g_num_wh * DIST_PER_WARE +
+         distKey(c_d_id, c_w_id);
 }
 
 uint64_t stockKey(uint64_t s_i_id, uint64_t s_w_id) {

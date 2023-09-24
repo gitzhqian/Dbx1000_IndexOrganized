@@ -14,9 +14,9 @@ Table<StaticConfig>::Table(DB<StaticConfig>* db, uint16_t cf_count,
   // constexpr size_t kAlignment = 32;
   // constexpr size_t kAlignment = 8;
 
-  printf("RowHead size: %" PRIu64 " bytes\n", sizeof(RowHead<StaticConfig>));
-  printf("RowVersion size: %" PRIu64 " bytes\n",
-         sizeof(RowVersion<StaticConfig>));
+//  printf("RowHead size: %" PRIu64 " bytes\n", sizeof(RowHead<StaticConfig>));
+//  printf("RowVersion size: %" PRIu64 " bytes\n",
+//         sizeof(RowVersion<StaticConfig>));
 
   uint64_t rh_offset = 0;
   for (uint16_t cf_id = 0; cf_id < cf_count_; cf_id++) {
@@ -29,18 +29,14 @@ Table<StaticConfig>::Table(DB<StaticConfig>* db, uint16_t cf_count,
             sizeof(RowHead<StaticConfig>) + sizeof(RowVersion<StaticConfig>) +
             cf.data_size_hint);
         cf.inlining = 1;
-        cf.inlined_rv_size_cls =
-            SharedRowVersionPool<StaticConfig>::data_size_to_class(
-                cf.data_size_hint);
+        cf.inlined_rv_size_cls = SharedRowVersionPool<StaticConfig>::data_size_to_class( cf.data_size_hint);
       } else {
-        cf.rh_size =
-            ::mica::util::roundup<kAlignment>(sizeof(RowHead<StaticConfig>));
+        cf.rh_size = ::mica::util::roundup<kAlignment>(sizeof(RowHead<StaticConfig>));
         cf.inlining = 0;
         cf.inlined_rv_size_cls = 0;
       }
     } else {
-      cf.rh_size =
-          ::mica::util::roundup<kAlignment>(sizeof(RowHead<StaticConfig>));
+      cf.rh_size = ::mica::util::roundup<kAlignment>(sizeof(RowHead<StaticConfig>));
       cf.inlining = 0;
       cf.inlined_rv_size_cls = 0;
     }
@@ -48,11 +44,11 @@ Table<StaticConfig>::Table(DB<StaticConfig>* db, uint16_t cf_count,
     cf.rh_offset = rh_offset;
     rh_offset += cf.rh_size;
 
-    printf("column family %" PRIu16 "\n", cf_id);
-
-    printf("  data size hint: %" PRIu64 " bytes\n", cf.data_size_hint);
-    printf("  rh size: %" PRIu64 " bytes (inlining=%s)\n", cf.rh_size,
-           (cf.inlining ? "yes" : "no"));
+//    printf("column family %" PRIu16 "\n", cf_id);
+//
+//    printf("  data size hint: %" PRIu64 " bytes\n", cf.data_size_hint);
+//    printf("  rh size: %" PRIu64 " bytes (inlining=%s)\n", cf.rh_size,
+//           (cf.inlining ? "yes" : "no"));
     // if (StaticConfig::kInlinedRowVersion && cf.inlining) {
     //   RowHead<StaticConfig> h;
     //   printf(
@@ -75,10 +71,10 @@ Table<StaticConfig>::Table(DB<StaticConfig>* db, uint16_t cf_count,
   }
   row_id_mask_ = (uint64_t(1) << row_id_shift_) - 1;
 
-  printf("maximum table size: %" PRIu64 " rows (%" PRIu64 " * %" PRIu64 ")\n",
-         kFirstLevelWidth * second_level_width_, kFirstLevelWidth,
-         second_level_width_);
-  printf("\n");
+//  printf("maximum table size: %" PRIu64 " rows (%" PRIu64 " * %" PRIu64 ")\n",
+//         kFirstLevelWidth * second_level_width_, kFirstLevelWidth,
+//         second_level_width_);
+//  printf("\n");
 
   base_root_ = db_->page_pool(0)->allocate();
   if (base_root_ == nullptr) {
@@ -144,6 +140,14 @@ RowHead<StaticConfig>* Table<StaticConfig>::head(uint16_t cf_id,
   //   __builtin_prefetch(h + 192, 0, 3);
 
   return reinterpret_cast<RowHead<StaticConfig>*>(h);
+}
+template <class StaticConfig>
+AggressiveRowHead <StaticConfig>* Table<StaticConfig>::idx_head(uint16_t cf_id, uint64_t row_id){
+    auto& cf = cf_[cf_id];
+    auto p = root_[row_id >> row_id_shift_];
+    auto h = p + (row_id & row_id_mask_) * total_rh_size_ + cf.rh_offset;
+
+    return reinterpret_cast<AggressiveRowHead<StaticConfig>*>(h);
 }
 
 template <class StaticConfig>
@@ -257,8 +261,7 @@ bool Table<StaticConfig>::allocate_rows(Context<StaticConfig>* ctx,
       if (StaticConfig::kInlinedRowVersion && cf.inlining) {
         auto inlined_rv = h->inlined_rv;
         inlined_rv->status = RowVersionStatus::kInvalid;
-        inlined_rv->numa_id =
-            RowVersion<StaticConfig>::kInlinedRowVersionNUMAID;
+        inlined_rv->numa_id = RowVersion<StaticConfig>::kInlinedRowVersionNUMAID;
         inlined_rv->size_cls = cf.inlined_rv_size_cls;
       }
 

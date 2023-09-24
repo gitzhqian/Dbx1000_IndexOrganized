@@ -43,8 +43,7 @@ RC IndexMICAGeneric<MICAIndex>::init(uint64_t part_cnt, table_t* table,
     int i = 0;
     while (true) {
       sprintf(buf, "%s_IDX_%d", table->get_table_name(), i);
-      if (mica_tbl->db()->create_hash_index_nonunique_u64(buf, mica_tbl,
-                                                          bucket_cnt))
+      if (mica_tbl->db()->create_hash_index_nonunique_u64(buf, mica_tbl, bucket_cnt))
         break;
       i++;
     }
@@ -138,15 +137,24 @@ RC IndexMICAGeneric<MICAIndex>::index_remove(txn_man* txn, MICATransaction* tx,
 
 template <>
 RC IndexMICAGeneric<MICAIndex>::index_read(txn_man* txn, idx_key_t key,
-                                           row_t** row, int part_id) {
+                                           void** row, int part_id) {
   auto tx = txn->mica_tx;
   bool skip_validation = !(MICA_FULLINDEX);
 
+#if AGGRESSIVE_INLINING
+  auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
+                                         [&row](uint64_t key, void * row_head) {
+                                             *row = row_head;
+                                             return false;
+                                         });
+#else
   auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
                                        [&row](uint64_t key, uint64_t value) {
-                                         *row = (row_t*)value;
+                                         *row = (void*)value;
                                          return false;
                                        });
+#endif
+
   if (ret == 0) return ERROR;
   if (ret == MICAIndex::kHaveToAbort) return Abort;
   // printf("%lu %lu\n", key, (uint64_t)row);
@@ -155,18 +163,28 @@ RC IndexMICAGeneric<MICAIndex>::index_read(txn_man* txn, idx_key_t key,
 
 template <>
 RC IndexMICAGeneric<MICAIndex>::index_read_multiple(txn_man* txn, idx_key_t key,
-                                                    row_t** rows, size_t& count,
+                                                    void** rows, size_t& count,
                                                     int part_id) {
   auto tx = txn->mica_tx;
   bool skip_validation = !(MICA_FULLINDEX);
 
   uint64_t i = 0;
+#if AGGRESSIVE_INLINING
+    uint64_t ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
+                                             [&i, rows, count](uint64_t k, void * row_head) {
+                                                 rows[i++] = row_head;
+                                                 // printf("%" PRIu64 "\n", i);
+                                                 return i < count;
+                                             });
+#else
   uint64_t ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
                                            [&i, rows, count](uint64_t k, uint64_t v) {
                                              rows[i++] = (row_t*)v;
                                              // printf("%" PRIu64 "\n", i);
                                              return i < count;
                                            });
+#endif
+
   if (ret == MICAIndex::kHaveToAbort) return Abort;
   count = i;
   // printf("%lu %lu\n", key, (uint64_t)row);
@@ -219,7 +237,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_remove(txn_man* txn,
 
 template <>
 RC IndexMICAGeneric<MICAOrderedIndex>::index_read(txn_man* txn, idx_key_t key,
-                                                  row_t** row, int part_id) {
+                                                  void** row, int part_id) {
   auto tx = txn->mica_tx;
 #if SIMPLE_INDEX_UPDATE || !TPCC_VALIDATE_NODE
   bool skip_validation = !(MICA_FULLINDEX);
@@ -237,7 +255,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read(txn_man* txn, idx_key_t key,
   //             });
   auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
                                        [&key, &row](uint64_t k, uint64_t v) {
-                                         *row = (row_t*)v;
+                                         *row = (void*)v;
                                          return false;
                                        });
   if (ret == 0) return ERROR;
@@ -248,7 +266,7 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read(txn_man* txn, idx_key_t key,
 
 template <>
 RC IndexMICAGeneric<MICAOrderedIndex>::index_read_multiple(
-    txn_man* txn, idx_key_t key, row_t** rows, size_t& count, int part_id) {
+    txn_man* txn, idx_key_t key, void** rows, size_t& count, int part_id) {
   auto tx = txn->mica_tx;
 #if SIMPLE_INDEX_UPDATE || !TPCC_VALIDATE_NODE
   bool skip_validation = !(MICA_FULLINDEX);

@@ -8,7 +8,7 @@ template <class StaticConfig, bool HasValue, class Key, class Compare>
 typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::InternalNode*
 BTreeIndex<StaticConfig, HasValue, Key, Compare>::make_internal_node(
     RowAccessHandle& rah) {
-  if (!rah.new_row(idx_tbl_, 0, Transaction::kNewRowID, true, kDataSize))
+  if (!rah.new_row(0, false, idx_tbl_, 0, Transaction::kNewRowID, true, kDataSize))
     return nullptr;
 
   auto node = reinterpret_cast<InternalNode*>(rah.data());
@@ -21,7 +21,7 @@ template <class StaticConfig, bool HasValue, class Key, class Compare>
 typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::LeafNode*
 BTreeIndex<StaticConfig, HasValue, Key, Compare>::make_leaf_node(
     RowAccessHandle& rah) {
-  if (!rah.new_row(idx_tbl_, 0, Transaction::kNewRowID, true, kDataSize))
+  if (!rah.new_row(0, false, idx_tbl_, 0, Transaction::kNewRowID, true, kDataSize))
     return nullptr;
 
   auto node = reinterpret_cast<LeafNode*>(rah.data());
@@ -42,7 +42,7 @@ template <typename RowAccessHandleT>
 const typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::Node*
 BTreeIndex<StaticConfig, HasValue, Key, Compare>::get_node(
     RowAccessHandleT& rah, uint64_t row_id) const {
-  if (!rah.peek_row(idx_tbl_, 0, row_id, true, false, false)) {
+  if (!rah.peek_row(idx_tbl_, 0, row_id, nullptr, true, false, false)) {
     // rah.tx()->print_version_chain(idx_tbl_, 0, row_id);
     return nullptr;
   }
@@ -55,7 +55,7 @@ template <bool RightOpen, bool RightExclusive, typename RowAccessHandleT>
 const typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::Node*
 BTreeIndex<StaticConfig, HasValue, Key, Compare>::get_node_with_fixup(
     RowAccessHandleT& rah, uint64_t row_id, const Key& key) const {
-  if (!rah.peek_row(idx_tbl_, 0, row_id, true, false, false)) return nullptr;
+  if (!rah.peek_row(idx_tbl_, 0, row_id, nullptr, true, false, false)) return nullptr;
   auto node_b = reinterpret_cast<const Node*>(rah.cdata());
   if (is_internal(node_b)) {
     if (!fixup_internal<RightOpen, RightExclusive>(rah, node_b, key))

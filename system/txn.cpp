@@ -4,6 +4,7 @@
 #undef NDEBUG
 #endif
 
+#include <functional>
 #include "txn.h"
 #include "row.h"
 #include "wl.h"
@@ -307,13 +308,13 @@ void txn_man::cleanup(RC rc) {
 // index_read methods
 template <typename IndexT>
 RC
-txn_man::index_read(IndexT* index, idx_key_t key, row_t** row, int part_id) {
+txn_man::index_read(IndexT* index, idx_key_t key, void** row, int part_id) {
 	return index->index_read(this, key, row, part_id);
 }
 
 template <typename IndexT>
 RC
-txn_man::index_read_multiple(IndexT* index, idx_key_t key, row_t** rows, size_t& count, int part_id) {
+txn_man::index_read_multiple(IndexT* index, idx_key_t key, void** rows, size_t& count, int part_id) {
 	return index->index_read_multiple(this, key, rows, count, part_id);
 }
 
@@ -415,7 +416,7 @@ row_t* txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, c
 #else	// CC_ALG == MICA
 #if !TPCC_CF
 template <typename IndexT>
-row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type)
+row_t * txn_man::get_row(IndexT* index, void* row, int part_id, access_t type, void* row_head)
 #else
 template <typename IndexT>
 row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type)
@@ -435,7 +436,7 @@ row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, 
 
 	// printf("2 row_id=%lu\n", item->row_id);
 #if !TPCC_CF
-	rc = row_t::get_row(type, this, index->table, accesses[ row_cnt ]->data, (uint64_t)row, part_id);
+	rc = row_t::get_row(type, this, index->table, accesses[ row_cnt ]->data, (uint64_t)row, row_head, part_id);
 #else
 	rc = row_t::get_row(type, this, index->table, accesses[ row_cnt ]->data, (uint64_t)row, part_id, cf_access_type);
 #endif
@@ -458,13 +459,26 @@ row_t * txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, 
 // search
 #if !TPCC_CF
 template <typename IndexT>
-row_t* txn_man::search(IndexT* index, uint64_t key, int part_id,
-                        access_t type) {
-	row_t* row;
-  auto ret = index_read(index, key, &row, part_id);
-	if (ret != RCOK) return NULL;
+row_t* txn_man::search(IndexT* index, uint64_t key, int part_id, access_t type) {
+    void* row;
+//  void *row_head;
 
-  return get_row(index, row, part_id, type);
+  uint64_t starttime1 = get_sys_clock();
+  auto ret = index_read(index, key, &row, part_id);
+  uint64_t timespan1 = get_sys_clock() - starttime1;
+  INC_STATS(get_thd_id(), time_root_to_leaf, timespan1);
+  if (ret != RCOK) return NULL;
+
+  uint64_t starttime = get_sys_clock();
+#if AGGRESSIVE_INLINING
+  auto ret_get_row = get_row(index, 0, part_id, type, const_cast<void *>(row));
+#else
+  auto ret_get_row = get_row(index, row, part_id, type);
+#endif
+  uint64_t timespan = get_sys_clock() - starttime;
+  INC_STATS(get_thd_id(), time_get_row, timespan);
+
+  return ret_get_row;
 }
 #else
 template <typename IndexT>
@@ -479,8 +493,7 @@ row_t* txn_man::search(IndexT* index, uint64_t key, int part_id,
 #endif
 
 // insert_row/remove_row
-bool txn_man::insert_row(table_t* tbl, row_t*& row, int part_id,
-                          uint64_t& out_row_id) {
+bool txn_man::insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& out_row_id) {
 #if CC_ALG != MICA
   if (tbl->get_new_row(row, part_id, out_row_id) != RCOK) return false;
 	assert(insert_cnt < MAX_ROW_PER_TXN);
@@ -504,7 +517,11 @@ bool txn_man::insert_row(table_t* tbl, row_t*& row, int part_id,
   assert(part_id >= 0 && part_id < (int)tbl->mica_tbl.size());
 #if !TPCC_CF
   MICARowAccessHandle rah(mica_tx);
-  if (!rah.new_row(tbl->mica_tbl[part_id], 0, MICATransaction::kNewRowID, false, tbl->get_schema()->cf_sizes[0])) return false;
+  if (!rah.new_row(0, false,
+                   tbl->mica_tbl[part_id], 0, MICATransaction::kNewRowID,
+                   false, tbl->get_schema()->cf_sizes[0])) {
+      return false;
+  }
   out_row_id = rah.row_id();
   row->set_row_id(out_row_id);
   row->set_part_id(part_id);
@@ -583,7 +600,7 @@ bool txn_man::insert_idx(IndexT* index, uint64_t key, row_t* row, int part_id) {
 
 #if INDEX_STRUCT != IDX_MICA || defined(IDX_MICA_USE_MBTREE)
 template <>
-bool txn_man::remove_idx(HASH_INDEX* index, uint64_t key, row_t* row, int part_id) {
+bool txn_man::remove_idx(ORDERED_INDEX* index, uint64_t key, row_t* row, int part_id) {
 #if CC_ALG == MICA
 #if TPCC_VALIDATE_GAP
   if (index->list_remove(mica_tx, key, row, part_id) != RCOK)
@@ -611,16 +628,16 @@ bool txn_man::remove_idx(OrderedIndexMICA* index, uint64_t key, row_t* row, int 
 
 // template instantiation
 template
-RC txn_man::index_read(HASH_INDEX* index, idx_key_t key, row_t** row, int part_id);
+RC txn_man::index_read(HASH_INDEX* index, idx_key_t key,   void** row, int part_id);
 template
-RC txn_man::index_read_multiple(HASH_INDEX* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+RC txn_man::index_read_multiple(HASH_INDEX* index, idx_key_t key,  void** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range(HASH_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range_rev(HASH_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 #if !TPCC_CF
 template
-row_t* txn_man::get_row(HASH_INDEX* index, row_t* row, int part_id, access_t type);
+row_t* txn_man::get_row(HASH_INDEX* index, void* row,  int part_id, access_t type, void* row_head);
 template
 row_t* txn_man::search(HASH_INDEX* index, size_t key, int part_id, access_t type);
 #else
@@ -630,23 +647,23 @@ template
 row_t* txn_man::search(HASH_INDEX* index, size_t key, int part_id, access_t type, const access_t* cf_access_type);
 #endif
 
- template
- bool txn_man::insert_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
- template
- bool txn_man::remove_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
+template
+bool txn_man::insert_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
+// template
+// bool txn_man::remove_idx(HASH_INDEX* idx, uint64_t key, row_t* row, int part_id);
 
 
 template
-RC txn_man::index_read(ARRAY_INDEX* index, idx_key_t key, row_t** row, int part_id);
+RC txn_man::index_read(ARRAY_INDEX* index, idx_key_t key,  void** row, int part_id);
 template
-RC txn_man::index_read_multiple(ARRAY_INDEX* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+RC txn_man::index_read_multiple(ARRAY_INDEX* index, idx_key_t key,  void** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range(ARRAY_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range_rev(ARRAY_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 #if !TPCC_CF
 template
-row_t* txn_man::get_row(ARRAY_INDEX* index, row_t* row, int part_id, access_t type);
+row_t* txn_man::get_row(ARRAY_INDEX* index, void* row, int part_id, access_t type, void* row_head);
 template
 row_t* txn_man::search(ARRAY_INDEX* index, size_t key, int part_id, access_t type);
 #else
@@ -661,16 +678,16 @@ row_t* txn_man::search(ARRAY_INDEX* index, size_t key, int part_id, access_t typ
 // bool txn_man::remove_idx(ARRAY_INDEX* idx, idx_key_t key, row_t* row, int part_id);
 
 template
-RC txn_man::index_read(ORDERED_INDEX* index, idx_key_t key, row_t** row, int part_id);
+RC txn_man::index_read(ORDERED_INDEX* index, idx_key_t key,  void** row, int part_id);
 template
-RC txn_man::index_read_multiple(ORDERED_INDEX* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+RC txn_man::index_read_multiple(ORDERED_INDEX* index, idx_key_t key,  void** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range(ORDERED_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 template
 RC txn_man::index_read_range_rev(ORDERED_INDEX* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 #if !TPCC_CF
 template
-row_t* txn_man::get_row(ORDERED_INDEX* index, row_t* row, int part_id, access_t type);
+row_t* txn_man::get_row(ORDERED_INDEX* index, void* row, int part_id, access_t type, void* row_head);
 template
 row_t* txn_man::search(ORDERED_INDEX* index, size_t key, int part_id, access_t type);
 #else
@@ -684,59 +701,58 @@ row_t* txn_man::search(ORDERED_INDEX* index, size_t key, int part_id, access_t t
 // template
 // bool txn_man::remove_idx(ORDERED_INDEX* idx, idx_key_t key, row_t* row, int part_id);
 
+//template <typename Func>
+//RC txn_man::finish(RC rc, const Func& func) {
+//#if CC_ALG == HSTORE
+//	rc = apply_index_changes(rc);
+//	return rc;
+//#endif
+//	// uint64_t starttime = get_sys_clock();
+//#if CC_ALG == OCC
+//	if (rc == RCOK)
+//		rc = occ_man.validate(this);
+//	else
+//		cleanup(rc);
+//#elif CC_ALG == TICTOC
+//	if (rc == RCOK)
+//		rc = validate_tictoc();
+//	else
+//		cleanup(rc);
+//#elif CC_ALG == SILO
+//	if (rc == RCOK)
+//		rc = validate_silo();
+//	else
+//		cleanup(rc);
+//#elif CC_ALG == HEKATON
+//	rc = validate_hekaton(rc);
+//	cleanup(rc);
+//#elif CC_ALG == MICA
+//  if (rc == RCOK) {
+//    if (mica_tx->has_began()) {
+//#ifndef IDX_MICA_USE_MBTREE
+//      rc = mica_tx->commit(func) ? RCOK : Abort;
+//#else
+//      auto write_func = [this]() { return apply_index_changes(RCOK) == RCOK; };
+//      rc = mica_tx->commit(NULL, write_func) ? RCOK : Abort;
+//      if (rc != RCOK) rc = apply_index_changes(rc);
+//#endif
+//    } else
+//      rc = RCOK;
+//  } else if (mica_tx->has_began() && !mica_tx->abort())
+//    assert(false);
+//  cleanup(rc);
+//#else
+//	rc = apply_index_changes(rc);
+//	cleanup(rc);
+//#endif
+//
+//	// uint64_t timespan = get_sys_clock() - starttime;
+//	// INC_TMP_STATS(get_thd_id(), time_man,  timespan);
+//	// INC_STATS(get_thd_id(), time_cleanup,  timespan);
+//	return rc;
+//}
 
-RC txn_man::finish(RC rc) {
-#if CC_ALG == HSTORE
-	rc = apply_index_changes(rc);
-	return rc;
-#endif
-	// uint64_t starttime = get_sys_clock();
-#if CC_ALG == OCC
-	if (rc == RCOK)
-		rc = occ_man.validate(this);
-	else
-		cleanup(rc);
-#elif CC_ALG == TICTOC
-	if (rc == RCOK)
-		rc = validate_tictoc();
-	else
-		cleanup(rc);
-#elif CC_ALG == SILO
-	if (rc == RCOK)
-		rc = validate_silo();
-	else
-		cleanup(rc);
-#elif CC_ALG == HEKATON
-	rc = validate_hekaton(rc);
-	cleanup(rc);
-#elif CC_ALG == MICA
-  if (rc == RCOK) {
-    if (mica_tx->has_began()) {
-#ifndef IDX_MICA_USE_MBTREE
-      rc = mica_tx->commit() ? RCOK : Abort;
-#else
-      auto write_func = [this]() { return apply_index_changes(RCOK) == RCOK; };
-      rc = mica_tx->commit(NULL, write_func) ? RCOK : Abort;
-      if (rc != RCOK) rc = apply_index_changes(rc);
-#endif
-    } else
-      rc = RCOK;
-  } else if (mica_tx->has_began() && !mica_tx->abort())
-    assert(false);
-  cleanup(rc);
-#else
-	rc = apply_index_changes(rc);
-	cleanup(rc);
-#endif
-
-	// uint64_t timespan = get_sys_clock() - starttime;
-	// INC_TMP_STATS(get_thd_id(), time_man,  timespan);
-	// INC_STATS(get_thd_id(), time_cleanup,  timespan);
-	return rc;
-}
-
-void
-txn_man::release() {
+void txn_man::release() {
 	for (int i = 0; i < num_accesses_alloc; i++)
 		mem_allocator.free(accesses[i], 0);
 	mem_allocator.free(accesses, 0);

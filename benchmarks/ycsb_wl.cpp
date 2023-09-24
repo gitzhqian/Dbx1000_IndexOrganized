@@ -26,9 +26,9 @@ RC ycsb_wl::init() {
   workload::init();
   next_tid = 0;
   char* cpath = getenv("GRAPHITE_HOME");
-  string path;
+  string path = "/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/benchmarks/";
   if (cpath == NULL)
-    path = "./benchmarks/YCSB_schema.txt";
+    path += "YCSB_schema.txt";
   else {
     path = string(cpath);
     path += "/tests/apps/dbms/YCSB_schema.txt";
@@ -132,6 +132,7 @@ void* ycsb_wl::init_table_slice() {
 #endif
 
   mem_allocator.register_thread(tid);
+  std::set<uint64_t> sets;
 
   RC rc;
   assert(tid < g_init_parallelism);
@@ -151,9 +152,18 @@ void* ycsb_wl::init_table_slice() {
 #endif
     uint64_t row_id;
     int part_id = key_to_part(key);
-    rc = the_table->get_new_row(new_row, part_id, row_id);
-    assert(rc == RCOK);
     uint64_t primary_key = key;
+    uint64_t idx_key = primary_key;
+
+    //todo: for test
+//    auto ret = sets.insert(idx_key);
+//    if (!ret.second){
+//       printf("sets,,,,,");
+//    }
+
+    rc = the_table->get_new_row(idx_key, new_row, part_id, row_id);
+    assert(rc == RCOK);
+
     new_row->set_primary_key(primary_key);
     new_row->set_value(0, &primary_key);
     Catalog* schema = the_table->get_schema();
@@ -163,10 +173,7 @@ void* ycsb_wl::init_table_slice() {
       new_row->set_value(fid, value);
     }
 
-    uint64_t idx_key = primary_key;
-
     index_insert(the_index, idx_key, new_row, part_id);
-
     // 		if (key % 1000000 == 0) {
     // 			printf("key=%" PRIu64 "\n", key);
     // #if INDEX_STRUCT == IDX_MICA
@@ -186,7 +193,6 @@ void* ycsb_wl::init_table_slice() {
 #endif
   return NULL;
 }
-
 RC ycsb_wl::get_txn_man(txn_man*& txn_manager, thread_t* h_thd) {
   txn_manager = (ycsb_txn_man*)mem_allocator.alloc(sizeof(ycsb_txn_man), h_thd->get_thd_id());
   new (txn_manager) ycsb_txn_man();

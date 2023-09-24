@@ -87,14 +87,24 @@ template <class StaticConfig>
 bool DB<StaticConfig>::create_hash_index_unique_u64(
     std::string name, Table<StaticConfig>* main_tbl,
     uint64_t expected_row_count) {
+    // "MAIN_TABLE_IDX_0"
   if (hash_idxs_unique_u64_.find(name) != hash_idxs_unique_u64_.end())
     return false;
 
-  const uint64_t kDataSizes[] = {HashIndexUniqueU64::kDataSize};
-  auto idx = new HashIndexUniqueU64(
-      this, main_tbl, new Table<StaticConfig>(this, 1, kDataSizes),
-      expected_row_count);
+  Table<StaticConfig>* idx_tbl;
+#if AGGRESSIVE_INLINING
+    uint64_t dataSize = main_tbl->get_table_total_th_size() + 8 + 8;
+    uint64_t kDataSizes = dataSize;
+    idx_tbl = new Table<StaticConfig>(this, 1, &kDataSizes);
+#else
+    const uint64_t kDataSizes[] = {HashIndexUniqueU64::kDataSize};
+    idx_tbl = new Table<StaticConfig>(this, 1, kDataSizes);
+#endif
+
+  auto idx = new HashIndexUniqueU64(this, main_tbl, idx_tbl, expected_row_count);
   hash_idxs_unique_u64_[name] = idx;
+  main_tbl->add_idx_hash(idx);
+
   return true;
 }
 
@@ -105,11 +115,20 @@ bool DB<StaticConfig>::create_hash_index_nonunique_u64(
   if (hash_idxs_nonunique_u64_.find(name) != hash_idxs_nonunique_u64_.end())
     return false;
 
-  const uint64_t kDataSizes[] = {HashIndexNonuniqueU64::kDataSize};
-  auto idx = new HashIndexNonuniqueU64(
-      this, main_tbl, new Table<StaticConfig>(this, 1, kDataSizes),
-      expected_row_count);
+    Table<StaticConfig>* idx_tbl;
+#if AGGRESSIVE_INLINING
+    uint64_t dataSize = main_tbl->get_table_total_th_size() + 8 + 8;
+    uint64_t kDataSizes = dataSize;
+    idx_tbl = new Table<StaticConfig>(this, 1, &kDataSizes);
+#else
+    const uint64_t kDataSizes[] = {HashIndexNonuniqueU64::kDataSize};
+    idx_tbl = new Table<StaticConfig>(this, 1, kDataSizes);
+#endif
+
+  auto idx = new HashIndexNonuniqueU64( this, main_tbl, idx_tbl, expected_row_count);
   hash_idxs_nonunique_u64_[name] = idx;
+  main_tbl->add_idx_hash(idx);
+
   return true;
 }
 

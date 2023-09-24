@@ -134,6 +134,11 @@ void Stats::print(double sim_time) {
 	uint64_t total_tpcc_delivery_abort = 0;
 	uint64_t total_tpcc_stock_level_commit = 0;
 	uint64_t total_tpcc_stock_level_abort = 0;
+
+    double total_time_root_to_leaf= 0;
+    double total_time_indirect_layer= 0;
+    double total_time_version_chain= 0;
+    double total_time_get_row= 0;
 	for (uint64_t tid = 0; tid < g_thread_cnt; tid ++) {
 		total_txn_cnt += _stats[tid]->txn_cnt;
 		total_abort_cnt += _stats[tid]->abort_cnt;
@@ -162,6 +167,11 @@ void Stats::print(double sim_time) {
 		total_tpcc_stock_level_commit += _stats[tid]->tpcc_stock_level_commit;
 		total_tpcc_stock_level_abort += _stats[tid]->tpcc_stock_level_abort;
 
+        total_time_root_to_leaf+= _stats[tid]->time_root_to_leaf;
+        total_time_indirect_layer+= _stats[tid]->time_indirect_layer;
+        total_time_version_chain+= _stats[tid]->time_version_chain;
+        total_time_get_row+= _stats[tid]->time_get_row;
+
 		printf("[tid=%ld] txn_cnt=%ld,abort_cnt=%ld\n",
 			tid,
 			_stats[tid]->txn_cnt,
@@ -175,7 +185,8 @@ void Stats::print(double sim_time) {
 			", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 			", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
 			", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
-			", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f\n",
+			", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f"
+            ", time_root_to_leaf=%f, time_indirect_layer=%f, time_version_chain=%f, time_get_row=%f\n",
 			total_txn_cnt,
 			total_abort_cnt,
 			total_run_time / BILLION,
@@ -195,7 +206,11 @@ void Stats::print(double sim_time) {
 			total_debug2, // / BILLION,
 			total_debug3, // / BILLION,
 			total_debug4, // / BILLION,
-			total_debug5 / BILLION
+			total_debug5 / BILLION,
+                total_time_root_to_leaf / BILLION,
+                total_time_indirect_layer / BILLION,
+                total_time_version_chain / BILLION,
+                total_time_get_row / BILLION
 		);
 		fclose(outf);
 	}
@@ -203,7 +218,8 @@ void Stats::print(double sim_time) {
 		", run_time=%f, time_wait=%f, time_ts_alloc=%f"
 		", time_man=%f, time_index=%f, time_abort=%f, time_cleanup=%f, latency=%f"
 		", deadlock_cnt=%ld, cycle_detect=%ld, dl_detect_time=%f, dl_wait_time=%f"
-		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f\n",
+		", time_query=%f, debug1=%f, debug2=%f, debug3=%f, debug4=%f, debug5=%f\n"
+        ", time_root_to_leaf=%f, time_indirect_layer=%f, time_version_chain=%f, time_get_row=%f\n",
 		total_txn_cnt,
 		total_abort_cnt,
 		total_run_time / BILLION,
@@ -223,7 +239,11 @@ void Stats::print(double sim_time) {
 		total_debug2, // / BILLION,
 		total_debug3, // / BILLION,
 		total_debug4, // / BILLION,
-		total_debug5  // / BILLION
+		total_debug5,  // / BILLION,
+		    total_time_root_to_leaf / BILLION,
+            total_time_indirect_layer / BILLION,
+            total_time_version_chain / BILLION,
+            total_time_get_row / BILLION
 	);
 	if (WORKLOAD == TPCC) {
 		printf("[summary] payment      (%7ld, %7ld)\n",

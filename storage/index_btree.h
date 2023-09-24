@@ -32,16 +32,16 @@ public:
 	RC			init(uint64_t part_cnt, table_t * table);
 	bool 		index_exist(idx_key_t key); // check if the key exist.
 	RC 			index_insert(idx_key_t key, itemid_t * item, int part_id = -1);
-	RC	 		index_read(idx_key_t key, itemid_t * &item,
-					uint64_t thd_id, int64_t part_id = -1);
+	RC	 		index_read(idx_key_t key, itemid_t * &item, uint64_t thd_id, int64_t part_id = -1);
 	RC	 		index_read(idx_key_t key, itemid_t * &item, int part_id = -1);
 	RC	 		index_read(idx_key_t key, itemid_t * &item);
 	RC 			index_next(uint64_t thd_id, itemid_t * &item, bool samekey = false);
-    RC index_insert(txn_man* txn, idx_key_t key, row_t* row, int part_id){return RCOK;}
-    // This method ignores the second row_t* argument.
-    RC index_remove(txn_man* txn, idx_key_t key, row_t*, int part_id){return RCOK;}
 
-    RC index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id){return RCOK;}
+    RC          index_insert(txn_man* txn, idx_key_t key, row_t* row, int part_id);
+    // This method ignores the second row_t* argument.
+    RC          index_remove(txn_man* txn, idx_key_t key, row_t*, int part_id){return RCOK;}
+
+    RC          index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id);
     RC index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
                            size_t& count, int part_id){return RCOK;}
 

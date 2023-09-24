@@ -165,7 +165,8 @@ row_t* tpcc_txn_man::payment_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[100];
+//  row_t* rows[100];
+  void* rows[100];
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
   if (rc != RCOK) {
@@ -175,7 +176,7 @@ row_t* tpcc_txn_man::payment_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
   if (count == 0) return NULL;
   assert(count != 100);
 
-  auto mid = rows[count / 2];
+  auto mid =  rows[count / 2];
 #if !TPCC_CF
   auto local = get_row(index, mid, part_id, WR);
 #else
@@ -262,7 +263,7 @@ RC tpcc_txn_man::run_payment(tpcc_query* query) {
   auto warehouse = payment_getWarehouse(arg.w_id);
   if (warehouse == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort, [](char* unused){ return true; });
   }
 
   payment_updateWarehouseBalance(warehouse, arg.h_amount);
@@ -270,7 +271,7 @@ RC tpcc_txn_man::run_payment(tpcc_query* query) {
   auto district = payment_getDistrict(arg.w_id, arg.d_id);
   if (district == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort, [](char* unused){ return true; });
   };
   payment_updateDistrictBalance(district, arg.h_amount);
 
@@ -279,16 +280,15 @@ RC tpcc_txn_man::run_payment(tpcc_query* query) {
   if (!arg.by_last_name)
     customer = payment_getCustomerByCustomerId(arg.w_id, arg.d_id, arg.c_id);
   else
-    customer =
-        payment_getCustomerByLastName(arg.w_id, arg.d_id, arg.c_last, &c_id);
+    customer = payment_getCustomerByLastName(arg.w_id, arg.d_id, arg.c_last, &c_id);
   if (customer == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   };
   if (!payment_updateCustomer(customer, c_id, arg.c_d_id, arg.c_w_id, arg.d_id,
                               arg.w_id, arg.h_amount)) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   }
 
 #if TPCC_INSERT_ROWS
@@ -316,7 +316,7 @@ RC tpcc_txn_man::run_payment(tpcc_query* query) {
   };
 #endif
 
-  return finish(RCOK);
+  return finish(RCOK,[](char* unused){ return true; });
 }
 
 //////////////////////////////////////////////////////
@@ -545,14 +545,14 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     if (items[ol_number - 1] == NULL) {
 //      assert(false);
       // FAIL_ON_ABORT();
-      return finish(Abort);
+      return finish(Abort,[](char* unused){ return true; });
     };
   }
 
   auto warehouse = new_order_getWarehouseTaxRate(arg.w_id);
   if (warehouse == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   };
   // double w_tax;
    double w_tax;
@@ -561,7 +561,7 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
   auto district = new_order_getDistrict(arg.d_id, arg.w_id);
   if (district == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   };
   double d_tax;
   district->get_value(D_TAX, d_tax);
@@ -572,7 +572,7 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
   auto customer = new_order_getCustomer(arg.w_id, arg.d_id, arg.c_id);
   if (customer == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   };
   uint64_t c_discount;
   customer->get_value(C_DISCOUNT, c_discount);
@@ -598,7 +598,7 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     auto stock = new_order_getStockInfo(ol_i_id, ol_supply_w_id);
     if (stock == NULL) {
       FAIL_ON_ABORT();
-      return finish(Abort);
+      return finish(Abort,[](char* unused){ return true; });
     };
     bool remote = ol_supply_w_id != arg.w_id;
     new_order_updateStock(stock, ol_quantity, remote);
@@ -617,7 +617,7 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     };
 #endif
   }
-  return finish(RCOK);
+  return finish(RCOK,[](char* unused){ return true; });
 }
 
 //////////////////////////////////////////////////////
@@ -654,7 +654,7 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[100];
+    void* rows[100];
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
   if (rc != RCOK) {
@@ -664,12 +664,12 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   if (count == 0) return NULL;
   assert(count != 100);
 
-  auto mid = rows[count / 2];
+  auto mid = const_cast<void *>(rows[count / 2]);
 #if !TPCC_CF
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
   auto local = get_row(index, mid, part_id, RD);
 #else
-  auto local = get_row(index, mid, part_id, PEEK);
+  auto local = get_row(index, mid , part_id, PEEK);
 #endif
 #else  // TPCC_CF
   const access_t cf_access_type[] = {PEEK, PEEK, SKIP};
@@ -710,11 +710,11 @@ row_t* tpcc_txn_man::order_status_getLastOrder(uint64_t w_id, uint64_t d_id,
   }
   if (count == 0) return NULL;
 
-  auto shared = rows[0];
+  auto shared =  rows[0];
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
   auto local = get_row(index, shared, part_id, RD);
 #else
-  auto local = get_row(index, shared, part_id, PEEK);
+  auto local = get_row(index, shared,  part_id, PEEK);
 #endif
   if (local == NULL) return NULL;
 
@@ -746,7 +746,7 @@ bool tpcc_txn_man::order_status_getOrderLines(uint64_t w_id, uint64_t d_id,
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
     auto local = get_row(index, shared, part_id, RD);
 #else
-    auto local = get_row(index, shared, part_id, PEEK);
+    auto local = get_row(index, shared,   part_id, PEEK);
 #endif
     if (local == NULL) return false;
 
@@ -796,7 +796,7 @@ RC tpcc_txn_man::run_order_status(tpcc_query* query) {
   }
 #endif
 
-  return finish(RCOK);
+  return finish(RCOK, [](char* unused){ return true; });
 }
 
 //////////////////////////////////////////////////////
@@ -855,9 +855,8 @@ bool tpcc_txn_man::delivery_getNewOrder_deleteNewOrder(uint64_t d_id,
 
   MICARowAccessHandle rah(mica_tx);
   // assert(part_id >= 0 && part_id < table->mica_tbl.size());
-  if (!rah.peek_row(table->mica_tbl[part_id], 0, (uint64_t)rows[0], false, true,
-                    true) ||
-      !rah.read_row()) {
+  if (!rah.peek_row(table->mica_tbl[part_id], 0, (uint64_t)rows[0], nullptr,
+                    false, true, true) || !rah.read_row()) {
     return false;
   }
 
@@ -1076,7 +1075,7 @@ RC tpcc_txn_man::run_delivery(tpcc_query* query) {
 
 #else  // !TPCC_FULL
 
-  return finish(RCOK);
+  return finish(RCOK, [](char* unused){ return true; });
 #endif
 }
 
@@ -1134,7 +1133,7 @@ bool tpcc_txn_man::stock_level_getStockCount(uint64_t ol_w_id, uint64_t ol_d_id,
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
     auto orderline = get_row(index, orderline_shared, part_id, RD);
 #else
-    auto orderline = get_row(index, orderline_shared, part_id, PEEK);
+    auto orderline = get_row(index, orderline_shared,   part_id, PEEK);
 #endif
     if (orderline == NULL) return false;
 
@@ -1222,5 +1221,5 @@ RC tpcc_txn_man::run_stock_level(tpcc_query* query) {
   (void)distinct_count;
 #endif
 
-  return finish(RCOK);
+  return finish(RCOK, [](char* unused){ return true; });
 }

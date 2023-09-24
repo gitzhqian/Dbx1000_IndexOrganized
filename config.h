@@ -4,7 +4,7 @@
 /***********************************************/
 // Simulation + Hardware
 /***********************************************/
-#define THREAD_CNT					1
+#define THREAD_CNT					2
 #define PART_CNT					1
 // each transaction only accesses 1 virtual partition. But the lock/ts manager and index are not aware of such partitioning. VIRTUAL_PART_CNT describes the request distribution and is only used to generate queries. For HSTORE, VIRTUAL_PART_CNT should be the same as PART_CNT.
 #define VIRTUAL_PART_CNT			1
@@ -41,7 +41,7 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						HEKATON
+#define CC_ALG 						MICA
 #define ISOLATION_LEVEL 			SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
@@ -58,7 +58,7 @@
 #define ENABLE_LATCH				false
 #define CENTRAL_INDEX				false
 #define CENTRAL_MANAGER 			false
-#define INDEX_STRUCT				IDX_HASH
+#define INDEX_STRUCT				IDX_MICA
 #define BTREE_ORDER 				16
 
 // [DL_DETECT]
@@ -111,17 +111,17 @@
 // max number of rows touched per transaction
 #define MAX_ROW_PER_TXN				1024
 #define QUERY_INTVL 				1UL
-#define MAX_TXN_PER_PART 			10000
+#define MAX_TXN_PER_PART 			1000*10
 #define MAX_WARMUP_DURATION         10.0
 #define MAX_TXN_DURATION            30.0
 #define FIRST_PART_LOCAL 			true
 #define MAX_TUPLE_SIZE				1024 // in bytes
 // ==== [YCSB] ====
 #define INIT_PARALLELISM			1
-#define SYNTH_TABLE_SIZE 			(1024 * 40)
+#define SYNTH_TABLE_SIZE 			(1024 * 1000)
 #define ZIPF_THETA 					0.6
-#define READ_PERC 					0.9
-#define WRITE_PERC 					0.1
+#define READ_PERC 					0.5
+#define WRITE_PERC 					0.5
 #define SCAN_PERC 					0
 #define SCAN_LEN					20
 #define PART_PER_TXN 				1
@@ -139,9 +139,9 @@
 #define WH_UPDATE					true
 #define NUM_WH 						1
 //
-#define TPCC_INSERT_ROWS  true
+#define TPCC_INSERT_ROWS  false
 #define TPCC_DELETE_ROWS  false
-#define TPCC_INSERT_INDEX true
+#define TPCC_INSERT_INDEX false
 #define TPCC_DELETE_INDEX false
 // TPCC_FULL requires TPCC_INSERT_ROWS and TPCC_UPDATE_INDEX to fully function
 #define TPCC_FULL         false
@@ -152,15 +152,15 @@
 #define SIMPLE_INDEX_UPDATE false
 //
 enum TPCCTxnType {TPCC_ALL,
-				TPCC_PAYMENT,
-				TPCC_NEW_ORDER,
-				TPCC_ORDER_STATUS,
-				TPCC_DELIVERY,
-				TPCC_STOCK_LEVEL};
+				  TPCC_PAYMENT,
+				  TPCC_NEW_ORDER,
+				  TPCC_ORDER_STATUS,
+				  TPCC_DELIVERY,
+				  TPCC_STOCK_LEVEL};
 extern TPCCTxnType 					g_tpcc_txn_type;
 
 //#define TXN_TYPE					TPCC_ALL
-#define PERC_PAYMENT 				0.0
+#define PERC_PAYMENT 				0.2
 #define FIRSTNAME_MINLEN 			8
 #define FIRSTNAME_LEN 				16
 #define LASTNAME_LEN 				16
@@ -237,7 +237,7 @@ extern TestCases					g_test_case;
 #define SILO						9
 #define VLL							10
 #define HEKATON 					11
-#define MICA 					12
+#define MICA 					    12
 //Isolation Levels
 #define SERIALIZABLE				1
 #define SNAPSHOT					2
@@ -265,6 +265,9 @@ extern TestCases					g_test_case;
 #define MICA_USE_SLOW_GC false
 #define MICA_SLOW_GC 10
 
-#define PRINT_LAT_DIST true
+#define PRINT_LAT_DIST false
+
+
+#define AGGRESSIVE_INLINING   false
 
 #endif

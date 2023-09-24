@@ -75,7 +75,60 @@ public:
 	bool volatile 	ts_ready;
 	// [HSTORE]
 	int volatile 	ready_part;
-	RC 				finish(RC rc);
+
+//    template <typename Func>
+//	RC 				finish(RC rc,  const Func& func);
+    template <typename Func>
+    RC finish(RC rc, const Func& func) {
+#if CC_ALG == HSTORE
+        rc = apply_index_changes(rc);
+	return rc;
+#endif
+        // uint64_t starttime = get_sys_clock();
+#if CC_ALG == OCC
+        if (rc == RCOK)
+		rc = occ_man.validate(this);
+	else
+		cleanup(rc);
+#elif CC_ALG == TICTOC
+        if (rc == RCOK)
+		rc = validate_tictoc();
+	else
+		cleanup(rc);
+#elif CC_ALG == SILO
+        if (rc == RCOK)
+		rc = validate_silo();
+	else
+		cleanup(rc);
+#elif CC_ALG == HEKATON
+        rc = validate_hekaton(rc);
+	cleanup(rc);
+#elif CC_ALG == MICA
+        if (rc == RCOK) {
+            if (mica_tx->has_began()) {
+#ifndef IDX_MICA_USE_MBTREE
+                rc = mica_tx->commit(func) ? RCOK : Abort;
+#else
+                auto write_func = [this]() { return apply_index_changes(RCOK) == RCOK; };
+      rc = mica_tx->commit(NULL, write_func) ? RCOK : Abort;
+      if (rc != RCOK) rc = apply_index_changes(rc);
+#endif
+            } else
+                rc = RCOK;
+        } else if (mica_tx->has_began() && !mica_tx->abort())
+            assert(false);
+        cleanup(rc);
+#else
+        rc = apply_index_changes(rc);
+	cleanup(rc);
+#endif
+
+        // uint64_t timespan = get_sys_clock() - starttime;
+        // INC_TMP_STATS(get_thd_id(), time_man,  timespan);
+        // INC_STATS(get_thd_id(), time_cleanup,  timespan);
+        return rc;
+    }
+
 	void 			cleanup(RC rc);
 #if CC_ALG == TICTOC
 	ts_t 			get_max_wts() 	{ return _max_wts; }
@@ -103,10 +156,10 @@ public:
 
 	// index_read methods
 	template <typename IndexT>
-	RC index_read(IndexT* index, idx_key_t key, row_t** row, int part_id);
+	RC index_read(IndexT* index, idx_key_t key, void** row, int part_id);
 
 	template <typename IndexT>
-	RC index_read_multiple(IndexT* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+	RC index_read_multiple(IndexT* index, idx_key_t key, void** rows, size_t& count, int part_id);
 
 	template <typename IndexT>
 	RC index_read_range(IndexT* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
@@ -117,7 +170,7 @@ public:
 	// get_row methods
 #if !TPCC_CF
 	template <typename IndexT>
-	row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type);
+	row_t* get_row(IndexT* index, void* row, int part_id, access_t type, void* row_head = nullptr);
 #else
 	template <typename IndexT>
 	row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type = NULL);

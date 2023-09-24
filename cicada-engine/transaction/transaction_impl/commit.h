@@ -51,8 +51,8 @@ bool Transaction<StaticConfig>::begin(bool peek_only,
     RAH rah(this);
     for (auto& item : to_reserve_) {
       rah.reset();
-      if (!peek_row(rah, item.tbl, item.cf_id, item.row_id, false,
-                    item.read_hint, item.write_hint)) {
+      if (!peek_row(rah, item.tbl, item.cf_id, item.row_id, nullptr,
+                    false, item.read_hint, item.write_hint)) {
         retry = true;
         break;
       }
@@ -94,8 +94,11 @@ void Transaction<StaticConfig>::sort_wset() {
     auto item = &accesses_[i];
 
     // This is very slightly faster than below.
-    wts[i] = item->head->older_rv->wts;
-
+    if(item->row_head != nullptr){
+        wts[i] = item->row_head->inlined_rv->wts;
+    }else if (item->head != nullptr){
+        wts[i] = item->head->older_rv->wts;
+    }
     // wts[i] = item->read_rv->wts;
   }
 
@@ -141,7 +144,16 @@ bool Transaction<StaticConfig>::check_version() {
         item->state == RowAccessState::kPeek)
       continue;
 
-    auto rv = item->newer_rv->older_rv;
+    //to check if the read version is changed
+    // rv is current newer version
+    // item->newer_rv is read newer version
+    RowVersion<StaticConfig> *rv;
+    if (item->row_head != nullptr){
+        rv = item->row_head->inlined_rv;
+    }else{
+        rv = item->newer_rv->older_rv;
+    }
+
     if (item->write_rv == nullptr)
       locate<true, false, true>(item->newer_rv, rv);
     else
@@ -162,13 +174,16 @@ bool Transaction<StaticConfig>::check_version() {
     if (rv != item->read_rv && (item->state == RowAccessState::kRead ||
                                 item->state == RowAccessState::kReadWrite ||
                                 item->state == RowAccessState::kReadDelete)) {
-      if (StaticConfig::kReserveAfterAbort)
-        reserve(item->tbl, item->cf_id, item->row_id, true,
-                item->state == RowAccessState::kWrite ||
-                    item->state == RowAccessState::kReadWrite ||
-                    item->state == RowAccessState::kDelete ||
-                    item->state == RowAccessState::kReadDelete);
-      return false;
+      if (rv->rts.get() != ts_) {
+          if (StaticConfig::kReserveAfterAbort) {
+              reserve(item->tbl, item->cf_id, item->row_id, true,
+                      item->state == RowAccessState::kWrite ||
+                      item->state == RowAccessState::kReadWrite ||
+                      item->state == RowAccessState::kDelete ||
+                      item->state == RowAccessState::kReadDelete);
+          }
+          return false;
+      }
     }
   }
   return true;
@@ -187,6 +202,8 @@ void Transaction<StaticConfig>::update_rts() {
 template <class StaticConfig>
 void Transaction<StaticConfig>::write() {
   // Row changes are visible.
+#if AGGRESSIVE_INLINING
+#else
   for (auto j = 0; j < wset_size_; j++) {
     auto i = wset_idx_[j];
     auto item = &accesses_[i];
@@ -199,6 +216,7 @@ void Transaction<StaticConfig>::write() {
   }
 
   ::mica::util::memory_barrier();
+#endif
 
   // auto gc_epoch = ctx_->db_->gc_epoch();
 
@@ -216,8 +234,9 @@ void Transaction<StaticConfig>::write() {
 }
 
 template <class StaticConfig>
-template <class WriteFunc>
-bool Transaction<StaticConfig>::commit(Result* detail,
+template <class WriteFunc, typename Func>
+bool Transaction<StaticConfig>::commit(const Func& func,
+                                       Result* detail,
                                        const WriteFunc& write_func) {
   Timing t(ctx_->timing_stack(), &Stats::main_validation);
 
@@ -304,7 +323,7 @@ bool Transaction<StaticConfig>::commit(Result* detail,
     t.switch_to(&Stats::deferred_row_insert);
     if (StaticConfig::kVerbose)
       printf("deferred_version_insert: ts=%" PRIu64 "\n", ts_.t2);
-    if (!insert_version_deferred()) {
+    if (!insert_version_deferred(func)) {
       if (StaticConfig::kCollectExtraCommitStats) {
         abort_reason_target_count_ =
             &ctx_->stats().aborted_by_deferred_row_version_insert_count;
@@ -447,8 +466,7 @@ bool Transaction<StaticConfig>::abort(bool skip_backoff) {
       // Release rows that are never inserted or became visible (as it is a new
       // row).
       if (StaticConfig::kVerbose)
-        printf("abort: ts=%" PRIu64 " deallocate: %p\n", ts_.t2,
-               item->write_rv);
+        printf("abort: ts=%" PRIu64 " deallocate: %p\n", ts_.t2, item->write_rv);
 
       ctx_->deallocate_version(item->write_rv);
     } else {
@@ -463,8 +481,7 @@ bool Transaction<StaticConfig>::abort(bool skip_backoff) {
   began_ = false;
 
   if (StaticConfig::kStragglerAvoidance)
-    ctx_->clock_boost_ =
-        static_cast<uint64_t>(StaticConfig::kStragglerAvoidanceIncrement);
+    ctx_->clock_boost_ = static_cast<uint64_t>(StaticConfig::kStragglerAvoidanceIncrement);
   consecutive_commits_ = 0;
 
   if (StaticConfig::kCollectCommitStats) {

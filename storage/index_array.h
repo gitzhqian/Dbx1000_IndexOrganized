@@ -19,8 +19,8 @@ class IndexArray : public index_base {
     return ERROR;
   }
 
-  RC index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id);
-  RC index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
+  RC index_read(txn_man* txn, idx_key_t key, void** row, int part_id);
+  RC index_read_multiple(txn_man* txn, idx_key_t key, void** rows,
                          size_t& count, int part_id) {
     // Not implemented.
     assert(false);

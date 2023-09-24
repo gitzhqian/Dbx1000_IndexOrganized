@@ -9,7 +9,7 @@
 namespace mica {
 namespace transaction {
 struct CompactTimestamp {
-  uint64_t t2;
+    volatile uint64_t t2;
 
   static CompactTimestamp make(uint32_t era, uint64_t tsc, uint32_t thread_id) {
     CompactTimestamp ts;
@@ -19,6 +19,11 @@ struct CompactTimestamp {
     ts.t2 = (tsc << 8) | static_cast<uint64_t>(thread_id);
     return ts;
   }
+    CompactTimestamp get() const {
+        CompactTimestamp ts;
+        ts.t2 = t2;
+        return ts;
+    }
 
   bool operator==(const CompactTimestamp& b) const { return t2 == b.t2; }
 

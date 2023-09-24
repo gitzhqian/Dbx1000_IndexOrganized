@@ -99,6 +99,7 @@ typedef DBConfig::Timing MICATiming;
 typedef ::mica::transaction::PagePool<DBConfig> MICAPagePool;
 typedef ::mica::transaction::DB<DBConfig> MICADB;
 typedef ::mica::transaction::Table<DBConfig> MICATable;
+//typedef MICADB::HashIndexUniqueU64 MICAIndex;
 typedef MICADB::HashIndexNonuniqueU64 MICAIndex;
 // typedef MICADB::BTreeIndexNonuniqueU64 MICAOrderedIndex;
 typedef MICADB::BTreeIndexUniqueU64 MICAOrderedIndex;

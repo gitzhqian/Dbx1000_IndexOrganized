@@ -49,7 +49,8 @@ struct BasicDBConfig {
   // static constexpr uint64_t kInlineThreshold = 64 - 40;
   // static constexpr uint64_t kInlineThreshold = 128 - 40;
   // static constexpr uint64_t kInlineThreshold = 192 - 40;
-  static constexpr uint64_t kInlineThreshold = 256 - 40;
+ //  static constexpr uint64_t kInlineThreshold = 256 - 40;
+  static constexpr uint64_t kInlineThreshold = 1024 + 100;
   // static constexpr uint64_t kInlineThreshold = 4096 - 40;
   // Use an alternative location for the inlining.
   static constexpr bool kInlineWithAltRow = false;
@@ -96,7 +97,7 @@ struct BasicDBConfig {
   // The number of RowVersion that a shared pool manages as a batch.
   static constexpr size_t kRowVersionPoolGroupSize = 1024;
   // The maximum number of RowVersion groups to keep in each local pool.
-  static constexpr size_t kRowVersionPoolGroupMaxCount = 16*8;
+  static constexpr size_t kRowVersionPoolGroupMaxCount = 1024;
 
   // The maximum size of the read and write set.  Both sets share the same
   // array.
@@ -261,7 +262,7 @@ class DB {
   HashIndexNonuniqueU64 *get_hash_index_nonunique_u64(std::string name) {
     return hash_idxs_nonunique_u64_[name];
   }
-  HashIndexNonuniqueU64 * get_hash_index_nonunique_u64(std::string name) const {
+  HashIndexNonuniqueU64 *get_hash_index_nonunique_u64(std::string name) const {
     return hash_idxs_nonunique_u64_[name];
   }
 

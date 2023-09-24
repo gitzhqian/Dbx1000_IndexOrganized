@@ -21,22 +21,27 @@ class HashIndexBucketCopier {
   bool operator()(uint16_t cf_id, RowVersion<StaticConfig>* dest,
                   const RowVersion<StaticConfig>* src) const {
     (void)cf_id;
-    if (dest->data_size == 0) return true;
+    uint32_t data_sz = dest->data_size;
+    if (data_sz == 0) return true;
 
     auto dest_bucket = reinterpret_cast<Bucket*>(dest->data);
     auto src_bucket = reinterpret_cast<const Bucket*>(src->data);
 
     dest_bucket->next = src_bucket->next;
 
-    ::mica::util::memcpy(dest_bucket->keys, src_bucket->keys,
-                         sizeof(Bucket::keys));
+#if AGGRESSIVE_INLINING
+    uint32_t copy_sz = ::mica::util::roundup<64>(
+            sizeof(AggressiveRowHead<StaticConfig>) + sizeof(RowVersion<StaticConfig>) + data_sz);
+    ::mica::util::memcpy(dest_bucket->aggressiveRowHead, src_bucket->aggressiveRowHead, copy_sz);
+#else
     if (Bucket::kBucketSize == 1) {
       for (size_t i = 0; i < Bucket::kBucketSize; i++)
         dest_bucket->values[i] = src_bucket->values[i];
     } else {
-      ::mica::util::memcpy(dest_bucket->values, src_bucket->values,
-                           sizeof(Bucket::values));
+      ::mica::util::memcpy(dest_bucket->values, src_bucket->values, sizeof(Bucket::values));
     }
+#endif
+
     return true;
   }
 };
@@ -45,13 +50,11 @@ template <class StaticConfig, bool UniqueKey, class Key, class Hash,
           class KeyEqual>
 class HashIndex {
  public:
-  typedef HashIndexBucketCopier<StaticConfig, UniqueKey, Key, Hash, KeyEqual>
-      DataCopier;
+  typedef HashIndexBucketCopier<StaticConfig, UniqueKey, Key, Hash, KeyEqual> DataCopier;
 
   typedef typename StaticConfig::Timing Timing;
   typedef ::mica::transaction::RowAccessHandle<StaticConfig> RowAccessHandle;
-  typedef ::mica::transaction::RowAccessHandlePeekOnly<StaticConfig>
-      RowAccessHandlePeekOnly;
+  typedef ::mica::transaction::RowAccessHandlePeekOnly<StaticConfig> RowAccessHandlePeekOnly;
   typedef ::mica::transaction::Transaction<StaticConfig> Transaction;
 
   struct Bucket {
@@ -63,9 +66,17 @@ class HashIndex {
     uint64_t next;
 
     Key keys[kBucketSize];
+#if AGGRESSIVE_INLINING
+    AggressiveRowHead<StaticConfig> aggressiveRowHead[kBucketSize];// aggressive inlining
+#else
     uint64_t values[kBucketSize];
+#endif
   };
+
   static constexpr uint64_t kDataSize = sizeof(Bucket);
+  uint64_t kkDataSize;
+
+  AggressiveRowHead<StaticConfig> kNullAggressiveRowHead;
 
   static constexpr uint64_t kNullRowID = static_cast<uint64_t>(-1);
 
@@ -78,6 +89,8 @@ class HashIndex {
 
   bool init(Transaction* tx);
 
+  AggressiveRowHead<StaticConfig>* idx_head(RowAccessHandle& rah, const Key& key);
+
   // hash_index_impl/insert.h
   uint64_t insert(Transaction* tx, const Key& key, uint64_t value);
 
@@ -86,8 +99,7 @@ class HashIndex {
 
   // hash_index_impl/lookup.h
   template <typename Func>
-  uint64_t lookup(Transaction* tx, const Key& key, bool skip_validation,
-                  const Func& func);
+  uint64_t lookup(Transaction* tx, const Key& key, bool skip_validation, const Func& func);
 
   // hash_index_impl/prefetch.h
   void prefetch(Transaction* tx, const Key& key);

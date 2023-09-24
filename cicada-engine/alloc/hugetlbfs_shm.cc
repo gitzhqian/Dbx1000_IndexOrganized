@@ -107,7 +107,7 @@ HugeTLBFS_SHM::HugeTLBFS_SHM(const ::mica::util::Config& config)
 
 //    num_pages_to_init_ = config.get("num_pages_to_init").get_uint64(1048576);
 //  num_pages_to_init_ = 8192; //20warehouse=10G, 2MB*8192=16GB
-  num_pages_to_init_ = 2048;
+  num_pages_to_init_ = 8192;
 
   {
     auto c = config.get("num_pages_to_free");

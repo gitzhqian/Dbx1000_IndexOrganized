@@ -25,12 +25,12 @@ uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::lookup(
 
     if (skip_validation) {
       RowAccessHandlePeekOnly rah(tx);
-      if (!rah.peek_row(idx_tbl_, 0, bkt_id, false, false, false))
+      if (!rah.peek_row(idx_tbl_, 0, bkt_id, nullptr, false, false, false))
         return kHaveToAbort;
       bkt = reinterpret_cast<const Bucket*>(rah.cdata());
     } else {
       RowAccessHandle rah(tx);
-      if (!rah.peek_row(idx_tbl_, 0, bkt_id, true, true, false) ||
+      if (!rah.peek_row(idx_tbl_, 0, bkt_id, nullptr, true, true, false) ||
           !rah.read_row(data_copier_))
         return kHaveToAbort;
       bkt = reinterpret_cast<const Bucket*>(rah.cdata());
@@ -42,9 +42,15 @@ uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::lookup(
       //        key, bkt->keys[i], bkt->values[i]);
       if (!key_equal_(bkt->keys[j], key)) continue;
 
+#if AGGRESSIVE_INLINING
+      auto cbkt = const_cast<Bucket*>(bkt);
+      auto agg_RHead = &cbkt->aggressiveRowHead[j];
+      if (agg_RHead->inlined_rv->status == RowVersionStatus::kInvalid) continue;
+      auto value = agg_RHead;
+#else
       if (bkt->values[j] == kNullRowID) continue;
-
       auto value = bkt->values[j];
+#endif
 
       if (StaticConfig::kCollectProcessingStats) {
         if (tx->context()->stats().max_hash_index_chain_len < chain_len)

@@ -88,8 +88,7 @@ class BTreeIndex {
 
   typedef typename StaticConfig::Timing Timing;
   typedef ::mica::transaction::RowAccessHandle<StaticConfig> RowAccessHandle;
-  typedef ::mica::transaction::RowAccessHandlePeekOnly<StaticConfig>
-      RowAccessHandlePeekOnly;
+  typedef ::mica::transaction::RowAccessHandlePeekOnly<StaticConfig> RowAccessHandlePeekOnly;
   typedef ::mica::transaction::Transaction<StaticConfig> Transaction;
 
   enum VerboseFlag : uint64_t {

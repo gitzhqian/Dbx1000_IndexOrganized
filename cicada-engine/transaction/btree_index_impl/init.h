@@ -47,7 +47,7 @@ bool BTreeIndex<StaticConfig, HasValue, Key, Compare>::init(Transaction* tx) {
   root->min_key = Key{};
   root->max_key = Key{};
 
-  if (!tx->commit()) {
+  if (!tx->commit([](char* unused){ return true; })) {
     printf("failed to initialize a new BTreeIndex\n");
     return false;
   }

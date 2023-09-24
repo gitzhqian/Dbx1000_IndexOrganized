@@ -81,7 +81,32 @@ index_btree::index_read(  idx_key_t key,
 	
 	return index_read(  key, item, 0, part_id);
 }
+RC index_btree::index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id){
+    uint64_t thd_id = 0;
 
+    RC rc = Abort;
+    glob_param params;
+    assert(part_id != -1);
+    params.part_id = part_id;
+    bt_node * leaf;
+    find_leaf(params, key, INDEX_READ, leaf);
+    if (leaf == NULL)
+        M_ASSERT(false, "the leaf does not exist!");
+    for (UInt32 i = 0; i < leaf->num_keys; i++)
+        if (leaf->keys[i] == key) {
+            auto m_item = (itemid_t *)leaf->pointers[i];
+            *row = (row_t*)m_item->location;
+            release_latch(leaf);
+            (*cur_leaf_per_thd[thd_id]) = leaf;
+            *cur_idx_per_thd[thd_id] = i;
+            return RCOK;
+        }
+    // release the latch after reading the node
+
+    printf("key = %ld\n", key);
+    M_ASSERT(false, "the key does not exist!");
+    return rc;
+}
 RC index_btree::index_read(  idx_key_t key, itemid_t *& item,
 	uint64_t thd_id, int64_t part_id) 
 {
@@ -107,7 +132,61 @@ RC index_btree::index_read(  idx_key_t key, itemid_t *& item,
 	M_ASSERT(false, "the key does not exist!");
 	return rc;
 }
+RC index_btree::index_insert(txn_man* txn, idx_key_t key, row_t* row, int part_id) {
+    itemid_t* m_item = (itemid_t*)mem_allocator.alloc(sizeof(itemid_t), part_id);
+    m_item->init();
+    m_item->type = DT_row;
+    m_item->location = row;
+    m_item->valid = true;
 
+    glob_param params;
+    if (WORKLOAD == TPCC) assert(part_id != -1);
+    assert(part_id != -1);
+    params.part_id = part_id;
+    // create a tree if there does not exist one already
+    RC rc = RCOK;
+    bt_node * root = find_root(params.part_id);
+    assert(root != NULL);
+    int depth = 0;
+    // TODO tree depth < 100
+    bt_node * ex_list[100];
+    bt_node * leaf = NULL;
+    bt_node * last_ex = NULL;
+    rc = find_leaf(params, key, INDEX_INSERT, leaf, last_ex);
+    assert(rc == RCOK);
+
+    bt_node * tmp_node = leaf;
+    if (last_ex != NULL) {
+        while (tmp_node != last_ex) {
+            //		assert( tmp_node->latch_type == LATCH_EX );
+            ex_list[depth++] = tmp_node;
+            tmp_node = tmp_node->parent;
+            assert (depth < 100);
+        }
+        ex_list[depth ++] = last_ex;
+    } else
+        ex_list[depth++] = leaf;
+    // from this point, the required data structures are all latched,
+    // so the system should not abort anymore.
+//	M_ASSERT(!index_exist(key), "the index does not exist!");
+    // insert into btree if the leaf is not full
+    if (leaf->num_keys < order - 1 || leaf_has_key(leaf, key) >= 0) {
+        rc = insert_into_leaf(params, leaf, key, m_item);
+        // only the leaf should be ex latched.
+//		assert( release_latch(leaf) == LATCH_EX );
+        for (int i = 0; i < depth; i++)
+            release_latch(ex_list[i]);
+//			assert( release_latch(ex_list[i]) == LATCH_EX );
+    }
+    else { // split the nodes when necessary
+        rc = split_lf_insert(params, leaf, key, m_item);
+        for (int i = 0; i < depth; i++)
+            release_latch(ex_list[i]);
+//			assert( release_latch(ex_list[i]) == LATCH_EX );
+    }
+//	assert(leaf->latch_type == LATCH_NONE);
+    return rc;
+}
 RC index_btree::index_insert(idx_key_t key, itemid_t * item, int part_id) {
 	glob_param params;
 	if (WORKLOAD == TPCC) assert(part_id != -1);

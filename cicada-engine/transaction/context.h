@@ -212,40 +212,58 @@ class Context {
   RowVersion<StaticConfig>* allocate_version(Table<StaticConfig>* tbl,
                                              uint16_t cf_id, uint64_t row_id,
                                              RowHead<StaticConfig>* head,
+                                             AggressiveRowHead<StaticConfig>* row_head,
                                              uint64_t data_size) {
-    auto size_cls =
-        SharedRowVersionPool<StaticConfig>::data_size_to_class(data_size);
+    auto size_cls = SharedRowVersionPool<StaticConfig>::data_size_to_class(data_size);
 
-    if (StaticConfig::kInlinedRowVersion && tbl->inlining(cf_id) &&
-        size_cls <= tbl->inlined_rv_size_cls(cf_id)) {
-      if (!StaticConfig::kInlineWithAltRow && NewRow) {
-        assert(head->inlined_rv->status == RowVersionStatus::kInvalid);
-        assert(head->inlined_rv->is_inlined());
-        // NewRow is guaranteed to have an inlined version available if
-        // alternative rows are disabled.
-        head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
-        return head->inlined_rv;
-      } else if (head->inlined_rv->status == RowVersionStatus::kInvalid &&
-                 __sync_bool_compare_and_swap(&head->inlined_rv->status,
-                                              RowVersionStatus::kInvalid,
-                                              RowVersionStatus::kPending)) {
-        // Acquire an inlined version by contesting it.
-        assert(head->inlined_rv->is_inlined());
-        head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
-        return head->inlined_rv;
-      } else if (StaticConfig::kInlineWithAltRow) {
-        auto alt_head = tbl->alt_head(cf_id, row_id);
-        if (alt_head->inlined_rv->status == RowVersionStatus::kInvalid &&
-            __sync_bool_compare_and_swap(&alt_head->inlined_rv->status,
-                                         RowVersionStatus::kInvalid,
-                                         RowVersionStatus::kPending)) {
-          // Acquire an inlined version at the alternative row by contesting it.
-          assert(alt_head->inlined_rv->is_inlined());
-          alt_head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
-          return alt_head->inlined_rv;
+    if (row_head != nullptr) {
+        assert(NewRow == false);
+        //todo:for test
+        auto r_d_s =  row_head->inlined_rv->data_size;
+        auto r_wts =  row_head->inlined_rv->wts;
+        auto r_status =  row_head->inlined_rv->status;
+        auto r_rs = row_head->inlined_rv->rts;
+
+//        assert(row_head->inlined_rv->status == RowVersionStatus::kCommitted);
+//        bool ret = __sync_bool_compare_and_swap(&row_head->inlined_rv->status,
+//                                                RowVersionStatus::kCommitted,
+//                                                RowVersionStatus::kDanging);
+//        assert(ret);
+    } else{
+        if (StaticConfig::kInlinedRowVersion && tbl->inlining(cf_id) &&
+            size_cls <= tbl->inlined_rv_size_cls(cf_id)) {
+            if (!StaticConfig::kInlineWithAltRow && NewRow) {
+                assert(head->inlined_rv->status == RowVersionStatus::kInvalid);
+                assert(head->inlined_rv->is_inlined());
+                // NewRow is guaranteed to have an inlined version available if
+                // alternative rows are disabled.
+                head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
+                return head->inlined_rv;
+            } else if (head->inlined_rv->status == RowVersionStatus::kInvalid &&
+                       __sync_bool_compare_and_swap(&head->inlined_rv->status,
+                                                    RowVersionStatus::kInvalid,
+                                                    RowVersionStatus::kPending)) {
+                // Acquire an inlined version by contesting it.
+                assert(head->inlined_rv->is_inlined());
+                head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
+                return head->inlined_rv;
+            } else if (StaticConfig::kInlineWithAltRow) {
+                auto alt_head = tbl->alt_head(cf_id, row_id);
+                if (alt_head->inlined_rv->status == RowVersionStatus::kInvalid &&
+                    __sync_bool_compare_and_swap(&alt_head->inlined_rv->status,
+                                                 RowVersionStatus::kInvalid,
+                                                 RowVersionStatus::kPending)) {
+                    // Acquire an inlined version at the alternative row by contesting it.
+                    assert(alt_head->inlined_rv->is_inlined());
+                    alt_head->inlined_rv->data_size = static_cast<uint32_t>(data_size);
+                    return alt_head->inlined_rv;
+                }
+            }
         }
-      }
     }
+
+
+
 
     auto pool = db_->row_version_pool(thread_id_);
     auto rv = pool->allocate(size_cls);
@@ -256,13 +274,14 @@ class Context {
   RowVersion<StaticConfig>* allocate_version_for_new_row(
       Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
       RowHead<StaticConfig>* head, uint64_t data_size) {
-    return allocate_version<true>(tbl, cf_id, row_id, head, data_size);
+    return allocate_version<true>(tbl, cf_id, row_id, head, nullptr, data_size);
   }
 
   RowVersion<StaticConfig>* allocate_version_for_existing_row(
       Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
-      RowHead<StaticConfig>* head, uint64_t data_size) {
-    return allocate_version<false>(tbl, cf_id, row_id, head, data_size);
+      RowHead<StaticConfig>* head, AggressiveRowHead<StaticConfig>* row_head,
+      uint64_t data_size) {
+    return allocate_version<false>(tbl, cf_id, row_id, head, row_head, data_size);
   }
 
   void deallocate_version(RowVersion<StaticConfig>* rv) {

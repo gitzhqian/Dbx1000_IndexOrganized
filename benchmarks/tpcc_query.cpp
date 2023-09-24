@@ -80,7 +80,8 @@ void tpcc_query::gen_payment(uint64_t thd_id) {
     } else
       arg.c_w_id = arg.w_id;
   }
-  if (y <= 60) {
+  if (y > 100) {
+//  if (y <= 60) {
     // by last name
     arg.by_last_name = true;
     Lastname(NURand(255, 0, 999, thd_id), arg.c_last);

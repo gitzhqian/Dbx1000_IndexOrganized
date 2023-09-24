@@ -8,13 +8,15 @@ template <class StaticConfig, bool UniqueKey, class Key, class Hash,
           class KeyEqual>
 uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::remove(
     Transaction* tx, const Key& key, uint64_t value) {
+#if AGGRESSIVE_INLINING
+#else
   Timing t(tx->context()->timing_stack(), &Stats::index_write);
 
   auto bkt_id = get_bucket_id(key);
   RowAccessHandle rah(tx);
   RowAccessHandle rah_prev(tx);
 
-  if (!rah.peek_row(idx_tbl_, 0, bkt_id, true, true, false) ||
+  if (!rah.peek_row(idx_tbl_, 0, bkt_id, nullptr, true, true, false) ||
       !rah.read_row(data_copier_))
     return kHaveToAbort;
   // printf("HashIndex::remove() 1\n");
@@ -35,7 +37,7 @@ uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::remove(
 
     rah_prev = rah;
     rah.reset();
-    if (!rah.peek_row(idx_tbl_, 0, bkt_id, true, true, false) ||
+    if (!rah.peek_row(idx_tbl_, 0, bkt_id, nullptr, true, true, false) ||
         !rah.read_row(data_copier_))
       return kHaveToAbort;
     // printf("HashIndex::remove() 2\n");
@@ -56,7 +58,7 @@ uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::remove(
 
       rah_prev = rah;
       rah.reset();
-      if (!rah.peek_row(idx_tbl_, 0, bkt_id, true, true, false) ||
+      if (!rah.peek_row(idx_tbl_, 0, bkt_id, nullptr, true, true, false) ||
           !rah.read_row(data_copier_))
         return kHaveToAbort;
       cbkt = reinterpret_cast<const Bucket*>(rah.cdata());
@@ -112,6 +114,7 @@ uint64_t HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::remove(
     // Delete this bucket.
     if (!rah.delete_row()) return kHaveToAbort;
   }
+#endif
 
   return 1;
 }

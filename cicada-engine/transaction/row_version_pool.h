@@ -362,8 +362,7 @@ class RowVersionPool {
     uint64_t current_free_count;
     RowVersion<StaticConfig>* rv;
 
-    RowVersionGroup<StaticConfig>
-        groups[StaticConfig::kRowVersionPoolGroupMaxCount];
+    RowVersionGroup<StaticConfig> groups[StaticConfig::kRowVersionPoolGroupMaxCount];
     uint64_t group_count;
   };
 

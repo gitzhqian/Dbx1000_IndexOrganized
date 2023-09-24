@@ -69,6 +69,8 @@ RC ycsb_txn_man::run_txn(base_query* query) {
           //					for (int fid = 0; fid < schema->get_field_cnt(); fid++) {
           //int fid = 0;
           // char * data = row->get_data();
+#if AGGRESSIVE_INLINING
+#else
 #if !TPCC_CF
           char* data = row->get_data() + column * kColumnSize;
 #else
@@ -83,6 +85,7 @@ RC ycsb_txn_man::run_txn(base_query* query) {
           //*(uint64_t *)(&data[fid * 10]) = 0;
           // memcpy(data, v, column_size);
           //					}
+#endif
         }
       }
 
@@ -93,6 +96,17 @@ RC ycsb_txn_man::run_txn(base_query* query) {
   }
   rc = RCOK;
 final:
-  rc = finish(rc);
+
+  rc = finish(rc, [](char* data) {
+      uint64_t v = 0;
+      for (uint64_t j = 0; j < kColumnSize; j += 64) {
+          v += static_cast<uint64_t>(data[j]);
+          data[j] = static_cast<char>(v);
+      }
+      v += static_cast<uint64_t>(data[kColumnSize - 1]);
+      data[kColumnSize - 1] = static_cast<char>(v);
+      return true;
+  });
+
   return rc;
 }

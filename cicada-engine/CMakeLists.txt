@@ -10,7 +10,7 @@ SET (CMAKE_CXX_FLAGS_DEBUG "-O0 -g" CACHE INTERNAL "compiler options" FORCE)
 SET (CMAKE_CXX_FLAGS_RELEASE "-O3" CACHE INTERNAL "compiler options" FORCE)
 
 
-OPTION(DEBUG "Enable debugging" OFF)
+OPTION(DEBUG "Enable debugging" ON)
 OPTION(LTO "Use link time optimization" OFF)
 
 # OPTION(AVX2 "Enable AVX2" ON)
@@ -43,13 +43,13 @@ ADD_DEFINITIONS(-g)
 
 IF(DEBUG)
 
-  MESSAGE(WARNING "Debugging is ENABLED (to disable, run `cmake .. -DDEBUG=OFF`). Performance will be low.")
+  MESSAGE(WARNING "Debugging is ENABLED (to disable, run `cmake .. -DDEBUG=ON`). Performance will be low.")
   ADD_DEFINITIONS(-Og)
   # ADD_DEFINITIONS(-O0)
 
 ELSE(DEBUG)
 
-  MESSAGE(STATUS "Debugging is disabled (to enable, run `cmake .. -DDEBUG=ON`)")
+  MESSAGE(STATUS "Debugging is disabled (to enable, run `cmake .. -DDEBUG=ON -DLTO=OFF`)")
   ADD_DEFINITIONS(-DNDEBUG)
   ADD_DEFINITIONS(-O3)
   # ADD_DEFINITIONS(--param inline-unit-growth=200 --param large-function-growth=500)
@@ -98,34 +98,34 @@ SET(LIBRARIES ${LIBRARIES} rt numa pthread)
 
 
 
-IF(LTO)
-
-  ADD_EXECUTABLE(test_atomics src/mica/test/test_atomics.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_atomics ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tsc_sync src/mica/test/test_tsc_sync.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tsc_sync ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tx src/mica/test/test_tx.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tx ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tx_index src/mica/test/test_tx_index.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tx_index ${LIBRARIES})
-
-ELSE(LTO)
-
-  ADD_LIBRARY(common ${SOURCES})
-
-  ADD_EXECUTABLE(test_atomics src/mica/test/test_atomics.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_atomics ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tsc_sync src/mica/test/test_tsc_sync.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tsc_sync ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tx src/mica/test/test_tx.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tx ${LIBRARIES})
-
-  ADD_EXECUTABLE(test_tx_index src/mica/test/test_tx_index.cc ${SOURCES})
-  TARGET_LINK_LIBRARIES(test_tx_index ${LIBRARIES})
-
-ENDIF(LTO)
+#IF(LTO)
+#
+#  ADD_EXECUTABLE(test_atomics src/mica/test/test_atomics.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_atomics ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tsc_sync src/mica/test/test_tsc_sync.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tsc_sync ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tx src/mica/test/test_tx.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tx ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tx_index src/mica/test/test_tx_index.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tx_index ${LIBRARIES})
+#
+#ELSE(LTO)
+#
+#  ADD_LIBRARY(common ${SOURCES})
+#
+#  ADD_EXECUTABLE(test_atomics src/mica/test/test_atomics.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_atomics ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tsc_sync src/mica/test/test_tsc_sync.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tsc_sync ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tx src/mica/test/test_tx.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tx ${LIBRARIES})
+#
+#  ADD_EXECUTABLE(test_tx_index src/mica/test/test_tx_index.cc ${SOURCES})
+#  TARGET_LINK_LIBRARIES(test_tx_index ${LIBRARIES})
+#
+#ENDIF(LTO)

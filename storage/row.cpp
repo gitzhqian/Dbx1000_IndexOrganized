@@ -29,8 +29,7 @@ size_t row_t::max_alloc_size() { return sizeof(row_t); }
 
 #endif
 
-RC
-row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
+RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_t row_id) {
 	_row_id = row_id;
 	_part_id = part_id;
 	this->table = host_table;
@@ -39,7 +38,7 @@ row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
   // We ignore the given row_id argument to init() because it contains an
   // uninitialized value and is not used by the workload.
 
-	assert(part_id >= 0 && part_id < table->mica_tbl.size());
+  assert(part_id >= 0 && part_id < table->mica_tbl.size());
   auto db = table->mica_db;
   auto tbl = table->mica_tbl[part_id];
 
@@ -54,7 +53,14 @@ row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
 			assert(false);
 #if !TPCC_CF
 		MICARowAccessHandle rah(&tx);
-		if (!rah.new_row(tbl, 0, MICATransaction::kNewRowID, false, schema->cf_sizes[0])) {
+#if AGGRESSIVE_INLINING
+		if (!rah.new_row(idx_key, true, tbl, 0, MICATransaction::kNewRowID,
+                                                false, schema->cf_sizes[0]))
+#else
+        if (!rah.new_row(idx_key, false, tbl, 0, MICATransaction::kNewRowID,
+                                                false, schema->cf_sizes[0]))
+#endif
+        {
 			if (!tx.abort())
 				assert(false);
 			continue;
@@ -76,7 +82,7 @@ row_t::init(table_t * host_table, uint64_t part_id, uint64_t row_id) {
                   rah.reset();
                 }
 #endif
-	  if (!tx.commit())
+	  if (!tx.commit([](char* unused){ return true; }))
 			continue;
 
 		break;
@@ -414,7 +420,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 #if CC_ALG == MICA
 #if !TPCC_CF
 RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
-                  row_t* access_row, uint64_t row_id, uint64_t part_id) {
+                  row_t* access_row, uint64_t row_id, void *row_head, uint64_t part_id) {
 #else
 RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
                   row_t* access_row, uint64_t row_id, uint64_t part_id,
@@ -446,8 +452,7 @@ RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
 
     if (this_type == PEEK) {
       MICARowAccessHandlePeekOnly rah(txn->mica_tx);
-      if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, false, false,
-                        false))
+      if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, nullptr, false, false, false))
         return Abort;
 #if !TPCC_CF
       access_row->data = const_cast<char*>(rah.cdata());
@@ -457,13 +462,11 @@ RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
     } else {
       MICARowAccessHandle rah(txn->mica_tx);
       if (this_type == RD) {
-        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, false, true,
-                          false) ||
+        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, row_head, false, true, false) ||
             !rah.read_row())
           return Abort;
       } else if (this_type == WR) {
-        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, false, true,
-                          true) ||
+        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, row_head,false, true, true) ||
             !rah.read_row() || !rah.write_row())
           return Abort;
       } else {

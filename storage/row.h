@@ -61,7 +61,7 @@ class row_t
 {
 public:
 
-	RC init(table_t * host_table, uint64_t part_id, uint64_t row_id = 0);
+	RC init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_t row_id = 0);
 	void init(int size);
 	RC switch_schema(table_t * host_table);
 	// not every row has a manager
@@ -123,7 +123,7 @@ public:
 
 #if CC_ALG == MICA
 #if !TPCC_CF
-	static RC get_row(access_t type, txn_man * txn, table_t* table, row_t* access_row, uint64_t row_id, uint64_t part_id);
+	static RC get_row(access_t type, txn_man * txn, table_t* table, row_t* access_row, uint64_t row_id, void *row_head, uint64_t part_id);
 #else
 	static RC get_row(access_t type, txn_man * txn, table_t* table, row_t* access_row, uint64_t row_id, uint64_t part_id, const access_t* cf_access_type);
 #endif

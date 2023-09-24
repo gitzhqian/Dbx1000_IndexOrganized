@@ -31,7 +31,7 @@ RC TestWorkload::init_table() {
 		row_t * new_row = NULL;
 		uint64_t row_id;
 		int part_id = 0;
-        rc = the_table->get_new_row(new_row, part_id, row_id);
+//        rc = the_table->get_new_row(new_row, part_id, row_id);
 		assert(rc == RCOK);
 		uint64_t primary_key = rid;
 		new_row->set_primary_key(primary_key);

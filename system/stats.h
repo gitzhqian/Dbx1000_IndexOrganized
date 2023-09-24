@@ -40,6 +40,11 @@ public:
 	uint64_t tpcc_stock_level_commit;
 	uint64_t tpcc_stock_level_abort;
 
+	double time_root_to_leaf;
+	double time_indirect_layer;
+	double time_version_chain;
+	double time_get_row;
+
 	char _pad[CL_SIZE];
 };
 
@@ -50,6 +55,10 @@ public:
 	double time_man;
 	double time_index;
 	double time_wait;
+    double time_root_to_leaf;
+    double time_indirect_layer;
+    double time_version_chain;
+    double time_get_row;
 	char _pad[CL_SIZE - sizeof(double)*3];
 };
 

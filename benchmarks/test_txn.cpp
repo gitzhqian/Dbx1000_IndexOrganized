@@ -20,11 +20,11 @@ RC TestTxnMan::run_txn(int type, int access_num) {
 RC TestTxnMan::testReadwrite(int access_num) {
 	RC rc = RCOK;
 
-	row_t * row;
+	  void * row;
 	row_t * row_local;
 	rc = index_read(_wl->the_index, 0, &row, 0);
 	assert(rc == RCOK);
-	row_local = get_row(_wl->the_index, row, 0, WR);
+	row_local = get_row(_wl->the_index, const_cast<void *>(row), 0, WR);
 	assert(rc == RCOK);
 	if (access_num == 0) {
 		char str[] = "hello";
@@ -48,7 +48,7 @@ RC TestTxnMan::testReadwrite(int access_num) {
     	assert(v3 == 8589934592UL);
 	    assert(strcmp(v4, "hello") == 0);
 	}
-	rc = finish(rc);
+    rc = finish(rc, [](char* unused){ return true; });
 	if (access_num == 0)
 		return RCOK;
 	else
@@ -60,12 +60,12 @@ TestTxnMan::testConflict(int access_num)
 {
 	RC rc = RCOK;
 
-	row_t * row;
+	  void * row;
 	row_t * row_local;
 	idx_key_t key;
 	for (key = 0; key < 1; key ++) {
 		rc = index_read(_wl->the_index, 0, &row, 0);
-		row_local = get_row(_wl->the_index, row, 0, WR);
+		row_local = get_row(_wl->the_index, const_cast<void *>(row),  0, WR);
 		if (row_local) {
 			char str[] = "hello";
 			row_local->set_value(0, 1234);
@@ -78,6 +78,6 @@ TestTxnMan::testConflict(int access_num)
 			break;
 		}
 	}
-	rc = finish(rc);
+	rc = finish(rc,[](char* unused){ return true; });
 	return rc;
 }

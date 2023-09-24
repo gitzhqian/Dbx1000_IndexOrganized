@@ -12,6 +12,7 @@ enum class RowVersionStatus : uint8_t {
   kAborted,
   kCommitted,  // Commited as a valid version.
   kDeleted,    // Commited as a deleted row.
+  kDanging,  //for aggressive inlining
 };
 
 template <class StaticConfig>
@@ -42,6 +43,11 @@ template <class StaticConfig>
 struct RowHead : public RowCommon<StaticConfig> {
   RowVersion<StaticConfig> inlined_rv[0] __attribute__((aligned(8)));
 };  // Alignment of Rows is handled by the table manually.
+
+template <class StaticConfig>
+struct AggressiveRowHead : public RowCommon<StaticConfig> {
+    RowVersion<StaticConfig> inlined_rv[0] __attribute__((aligned(8)));
+};
 
 template <class StaticConfig>
 struct RowGCInfo {

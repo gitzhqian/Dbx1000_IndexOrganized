@@ -24,7 +24,7 @@ void workload::init_mica() {
   auto config = ::mica::util::Config::load_file("/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/mica.json");
   mica_alloc = new MICAAlloc(config.get("alloc"));
 //  auto page_pool_size = 32 * uint64_t(1073741824);  // 32 GiB,  20warehouse=10GB
-  auto page_pool_size = 8 * uint64_t(1073741824);
+  auto page_pool_size = 32 * uint64_t(1073741824);
   mica_page_pools[0] = new MICAPagePool(mica_alloc, page_pool_size / 2, 0);  // 32GB/2=16GB
 //  mica_page_pools[1] = new MICAPagePool(mica_alloc, page_pool_size / 2, 1);
 //  mica_logger = new MICALogger();
@@ -169,11 +169,11 @@ RC workload::init_schema(string schema_file) {
 #endif
 
       if (strncmp(iname.c_str(), "ORDERED_", 8) == 0) {
-        //ORDERED_INDEX* index = (ORDERED_INDEX*)mem_allocator.alloc(sizeof(ORDERED_INDEX), -1);
-        //new (index) ORDERED_INDEX();
+        ORDERED_INDEX* index = (ORDERED_INDEX*)mem_allocator.alloc(sizeof(ORDERED_INDEX), -1);
+        new (index) ORDERED_INDEX();
 
-       // index->init(part_cnt, tables[tname]);
-       // ordered_indexes[iname] = index;
+        index->init(part_cnt, tables[tname]);
+        ordered_indexes[iname] = index;
       } else if (strncmp(iname.c_str(), "ARRAY_", 6) == 0) {
         ARRAY_INDEX* index = (ARRAY_INDEX*)mem_allocator.alloc(sizeof(ARRAY_INDEX), -1);
         new (index) ARRAY_INDEX();
@@ -187,7 +187,7 @@ RC workload::init_schema(string schema_file) {
 #if INDEX_STRUCT == IDX_HASH || INDEX_STRUCT == IDX_MICA
         index->init(part_cnt, tables[tname], table_size * 2);
 #else
-        index->init(part_cnt, tables[tname]);
+//        index->init(part_cnt, tables[tname]);
 #endif
         hash_indexes[iname] = index;
       }
@@ -217,8 +217,12 @@ RC workload::init_schema(string schema_file) {
 }
 
 template <class IndexT>
-void workload::index_insert(IndexT* index, uint64_t key, row_t* row,
-                            int part_id) {
+void workload::index_insert(IndexT* index, uint64_t key, row_t* row, int part_id) {
+#if AGGRESSIVE_INLINING
+    auto rc = RCOK;
+    return;
+#endif
+
 #if CC_ALG == MICA
   row = (row_t*)row->get_row_id();
 #endif
@@ -229,8 +233,7 @@ void workload::index_insert(IndexT* index, uint64_t key, row_t* row,
 
   MICATransaction tx(mica_db->context(thread_id));
   while (true) {
-    // printf("idx=%p part_id=%d key=%lu row_id=%lu\n", this, part_id, key,
-    // row_id);
+//     printf("idx=%p part_id=%d key=%lu row_id=%lu\n", this, part_id, key, row->get_row_id());
     if (!tx.begin()) assert(false);
 
     auto rc = index->index_insert(NULL, &tx, key, row, part_id);
@@ -239,7 +242,7 @@ void workload::index_insert(IndexT* index, uint64_t key, row_t* row,
       if (!tx.abort()) assert(false);
       continue;
     }
-    if (!tx.commit()) continue;
+    if (!tx.commit([](char* unused){ return true; })) continue;
 
     break;
   }

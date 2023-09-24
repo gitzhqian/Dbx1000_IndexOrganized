@@ -21,8 +21,13 @@ RC tpcc_wl::init() {
   workload::init();
 
 //  string path = "./benchmarks/";
-  string path = "/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/benchmarks/";
-  path += "TPCC_full_schema.txt";
+  string  path = "/home/zhangqian/code/cicada-exp-sigmod2017-DBx1000/benchmarks/";
+#if AGGRESSIVE_INLINING
+    path += "TPCC_full_schema_inlining.txt";
+#else
+    path += "TPCC_full_schema.txt";
+#endif
+
   cout << "reading schema file: " << path << endl;
   init_schema(path.c_str());
   cout << "TPCC schema initialized" << endl;
@@ -36,25 +41,38 @@ RC tpcc_wl::init_schema(const char* schema_file) {
   t_warehouse = tables["WAREHOUSE"];
   t_district = tables["DISTRICT"];
   t_customer = tables["CUSTOMER"];
-  t_history = tables["HISTORY"];
+  t_customer_last = tables["CUSTOMER_LAST"];
+//  t_history = tables["HISTORY"];
   t_neworder = tables["NEW-ORDER"];
   t_order = tables["ORDER"];
   t_orderline = tables["ORDER-LINE"];
   t_item = tables["ITEM"];
   t_stock = tables["STOCK"];
 
-  i_item = hash_indexes["HASH_ITEM_IDX"];
-  i_warehouse = hash_indexes["HASH_WAREHOUSE_IDX"];
-  i_district = hash_indexes["HASH_DISTRICT_IDX"];
-  i_customer_id = hash_indexes["HASH_CUSTOMER_ID_IDX"];
-//  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
-  i_stock = hash_indexes["HASH_STOCK_IDX"];
-  i_order = hash_indexes["HASH_ORDER_IDX"];
-//  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
-  i_neworder = hash_indexes["HASH_NEWORDER_IDX"];
-  i_orderline = hash_indexes["HASH_ORDERLINE_IDX"];
+//  i_item = ordered_indexes["ORDERED_ITEM_IDX"];
+//  i_warehouse = ordered_indexes["ORDERED_WAREHOUSE_IDX"];
+//  i_district = ordered_indexes["ORDERED_DISTRICT_IDX"];
+//  i_customer_id = ordered_indexes["ORDERED_CUSTOMER_ID_IDX"];
+////  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
+//  i_stock = ordered_indexes["ORDERED_STOCK_IDX"];
+//  i_order = ordered_indexes["ORDERED_ORDER_IDX"];
+////  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
+//  i_neworder = ordered_indexes["ORDERED_NEWORDER_IDX"];
+//  i_orderline = ordered_indexes["ORDERED_ORDERLINE_IDX"];
 
-  return RCOK;
+    i_item = hash_indexes["HASH_ITEM_IDX"];
+    i_warehouse = hash_indexes["HASH_WAREHOUSE_IDX"];
+    i_district = hash_indexes["HASH_DISTRICT_IDX"];
+    i_customer_id = hash_indexes["HASH_CUSTOMER_ID_IDX"];
+    i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
+    i_stock = hash_indexes["HASH_STOCK_IDX"];
+    i_order = hash_indexes["HASH_ORDER_IDX"];
+//  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
+    i_neworder = hash_indexes["HASH_NEWORDER_IDX"];
+    i_orderline = hash_indexes["HASH_ORDERLINE_IDX"];
+
+
+    return RCOK;
 }
 
 RC tpcc_wl::init_table() {
@@ -76,8 +94,7 @@ RC tpcc_wl::init_table() {
   tpcc_buffer = new drand48_data*[wh_thd_max];
 
   for (int i = 0; i < wh_thd_max; i++) {
-    tpcc_buffer[i] =
-        (drand48_data*)mem_allocator.alloc(sizeof(drand48_data), -1);
+    tpcc_buffer[i] = (drand48_data*)mem_allocator.alloc(sizeof(drand48_data), -1);
     srand48_r(i + 1, tpcc_buffer[i]);
   }
   InitNURand(0);
@@ -132,8 +149,9 @@ void tpcc_wl::init_tab_item() {
     row = &row_container;
 #endif
     uint64_t row_id;
-    t_item->get_new_row(row, 0, row_id);
-    row->set_primary_key(itemKey(i));
+    uint64_t idx_primary = itemKey(i);
+    t_item->get_new_row(idx_primary, row, 0, row_id);
+    row->set_primary_key(idx_primary);
     row->set_value(I_ID, i);
     row->set_value(I_IM_ID, URand(1L, 10000L, 0));
     char name[24];
@@ -148,7 +166,10 @@ void tpcc_wl::init_tab_item() {
     }
     row->set_value(I_DATA, data);
 
+#if AGGRESSIVE_INLINING
+#else
     index_insert(i_item, itemKey(i), row, 0);
+#endif
   }
 }
 
@@ -160,8 +181,9 @@ void tpcc_wl::init_tab_wh(uint32_t wid) {
   row = &row_container;
 #endif
   uint64_t row_id;
-  t_warehouse->get_new_row(row, wh_to_part(wid), row_id);
-  row->set_primary_key(warehouseKey(wid));
+  uint64_t idx_primary = warehouseKey(wid);
+  t_warehouse->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+  row->set_primary_key(idx_primary);
 
   row->set_value(W_ID, wid);
   char name[10];
@@ -185,7 +207,10 @@ void tpcc_wl::init_tab_wh(uint32_t wid) {
   double w_ytd = 300000.00;
   row->set_value(W_YTD, w_ytd);
 
+#if AGGRESSIVE_INLINING
+#else
   index_insert(i_warehouse, warehouseKey(wid), row, wh_to_part(wid));
+#endif
 }
 
 void tpcc_wl::init_tab_dist(uint64_t wid) {
@@ -196,8 +221,9 @@ void tpcc_wl::init_tab_dist(uint64_t wid) {
     row = &row_container;
 #endif
     uint64_t row_id;
-    t_district->get_new_row(row, wh_to_part(wid), row_id);
-    row->set_primary_key(distKey(did, wid));
+    uint64_t idx_primary = distKey(did, wid);
+    t_district->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    row->set_primary_key(idx_primary);
 
     row->set_value(D_ID, did);
     row->set_value(D_W_ID, wid);
@@ -223,7 +249,10 @@ void tpcc_wl::init_tab_dist(uint64_t wid) {
     row->set_value(D_YTD, d_ytd);
     row->set_value(D_NEXT_O_ID, uint64_t(3001));
 
+#if AGGRESSIVE_INLINING
+#else
     index_insert(i_district, distKey(did, wid), row, wh_to_part(wid));
+#endif
   }
 }
 
@@ -235,8 +264,9 @@ void tpcc_wl::init_tab_stock(uint64_t wid) {
     row = &row_container;
 #endif
     uint64_t row_id;
-    t_stock->get_new_row(row, wh_to_part(wid), row_id);
-    row->set_primary_key(stockKey(sid, wid));
+    uint64_t idx_primary = stockKey(sid, wid);
+    t_stock->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    row->set_primary_key(idx_primary);
     row->set_value(S_I_ID, sid);
     row->set_value(S_W_ID, wid);
     row->set_value(S_QUANTITY, URand(10, 100, wid - 1));
@@ -266,76 +296,148 @@ void tpcc_wl::init_tab_stock(uint64_t wid) {
     }
     row->set_value(S_DATA, s_data);
 
+#if AGGRESSIVE_INLINING
+#else
     index_insert(i_stock, stockKey(sid, wid), row, wh_to_part(wid));
+#endif
   }
 }
 
 void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
-  assert(g_cust_per_dist >= 1000);
-  for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++) {
-    row_t* row;
+    assert(g_cust_per_dist >= 1000);
+    for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++) {
+        row_t *row;
 #if CC_ALG == MICA
-    row_t row_container;
-    row = &row_container;
+        row_t row_container;
+        row = &row_container;
 #endif
-    uint64_t row_id;
-    t_customer->get_new_row(row, wh_to_part(wid), row_id);
-    row->set_primary_key(custKey(cid, did, wid));
+        uint64_t row_id;
+        uint64_t idx_primary = custKey(cid, did, wid);
+        t_customer->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+        row->set_primary_key(idx_primary);
 
-    row->set_value(C_ID, cid);
-    row->set_value(C_D_ID, did);
-    row->set_value(C_W_ID, wid);
-    char c_last[LASTNAME_LEN];
-    if (cid <= 1000)
-      Lastname(cid - 1, c_last);
-    else
-      Lastname(NURand(255, 0, 999, wid - 1), c_last);
-    row->set_value(C_LAST, c_last);
+        row->set_value(C_ID, cid);
+        row->set_value(C_D_ID, did);
+        row->set_value(C_W_ID, wid);
+        char c_last[LASTNAME_LEN];
+        if (cid <= 1000)
+            Lastname(cid - 1, c_last);
+        else
+            Lastname(NURand(255, 0, 999, wid - 1), c_last);
+        row->set_value(C_LAST, c_last);
 
-    char tmp[3] = "OE";
-    row->set_value(C_MIDDLE, tmp);
-    char c_first[FIRSTNAME_LEN];
-    MakeAlphaString(FIRSTNAME_MINLEN, sizeof(c_first), c_first, wid - 1);
-    row->set_value(C_FIRST, c_first);
-    char street[20];
-    MakeAlphaString(10, 20, street, wid - 1);
-    row->set_value(C_STREET_1, street);
-    MakeAlphaString(10, 20, street, wid - 1);
-    row->set_value(C_STREET_2, street);
-    MakeAlphaString(10, 20, street, wid - 1);
-    row->set_value(C_CITY, street);
-    char state[2];
-    MakeAlphaString(2, 2, state, wid - 1); /* State */
-    row->set_value(C_STATE, state);
-    char zip[9];
-    MakeNumberString(9, 9, zip, wid - 1); /* Zip */
-    row->set_value(C_ZIP, zip);
-    char phone[16];
-    MakeNumberString(16, 16, phone, wid - 1); /* Phone */
-    row->set_value(C_PHONE, phone);
-    row->set_value(C_SINCE, uint64_t(0));
-    row->set_value(C_CREDIT_LIM, 50000.0);
-    char c_data[500];
-    MakeAlphaString(300, 500, c_data, wid - 1);
-    row->set_value(C_DATA, c_data);
+        char tmp[3] = "OE";
+        row->set_value(C_MIDDLE, tmp);
+        char c_first[FIRSTNAME_LEN];
+        MakeAlphaString(FIRSTNAME_MINLEN, sizeof(c_first), c_first, wid - 1);
+        row->set_value(C_FIRST, c_first);
+        char street[20];
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_STREET_1, street);
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_STREET_2, street);
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_CITY, street);
+        char state[2];
+        MakeAlphaString(2, 2, state, wid - 1); /* State */
+        row->set_value(C_STATE, state);
+        char zip[9];
+        MakeNumberString(9, 9, zip, wid - 1); /* Zip */
+        row->set_value(C_ZIP, zip);
+        char phone[16];
+        MakeNumberString(16, 16, phone, wid - 1); /* Phone */
+        row->set_value(C_PHONE, phone);
+        row->set_value(C_SINCE, uint64_t(0));
+        row->set_value(C_CREDIT_LIM, 50000.0);
+        char c_data[500];
+        MakeAlphaString(300, 500, c_data, wid - 1);
+        row->set_value(C_DATA, c_data);
 
-    if (RAND(10, wid - 1) == 0) {
-      char tmp[] = "GC";
-      row->set_value(C_CREDIT, tmp);
-    } else {
-      char tmp[] = "BC";
-      row->set_value(C_CREDIT, tmp);
+        if (RAND(10, wid - 1) == 0) {
+            char tmp[] = "GC";
+            row->set_value(C_CREDIT, tmp);
+        } else {
+            char tmp[] = "BC";
+            row->set_value(C_CREDIT, tmp);
+        }
+        row->set_value(C_DISCOUNT, (double) URand(1, 5000, wid - 1) / 10000.0);
+
+        row->set_value(C_BALANCE, -10.0);
+        row->set_value(C_YTD_PAYMENT, 10.0);
+        row->set_value(C_PAYMENT_CNT, uint64_t(1));
+        row->set_value(C_DELIVERY_CNT, uint64_t(0));
+
+#if AGGRESSIVE_INLINING
+#else
+        index_insert(i_customer_last, custNPKey(did, wid, c_last), row, wh_to_part(wid));
+        index_insert(i_customer_id, custKey(cid, did, wid), row, wh_to_part(wid));
+#endif
     }
-    row->set_value(C_DISCOUNT, (double)URand(1, 5000, wid - 1) / 10000.0);
+}
+void tpcc_wl::init_tab_cust_last(uint64_t did, uint64_t wid) {
+    for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++) {
+        row_t* row;
+#if CC_ALG == MICA
+        row_t row_container;
+        row = &row_container;
+#endif
+        uint64_t row_id;
+        uint64_t idx_primary = custKey(cid, did, wid);
+        t_customer_last->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+        row->set_primary_key(idx_primary);
 
-    row->set_value(C_BALANCE, -10.0);
-    row->set_value(C_YTD_PAYMENT, 10.0);
-    row->set_value(C_PAYMENT_CNT, uint64_t(1));
-    row->set_value(C_DELIVERY_CNT, uint64_t(0));
+        row->set_value(C_ID, cid);
+        row->set_value(C_D_ID, did);
+        row->set_value(C_W_ID, wid);
+        char c_last[LASTNAME_LEN];
+        if (cid <= 1000)
+            Lastname(cid - 1, c_last);
+        else
+            Lastname(NURand(255, 0, 999, wid - 1), c_last);
+        row->set_value(C_LAST, c_last);
 
-//    index_insert(i_customer_last, custNPKey(did, wid, c_last), row, wh_to_part(wid));
-    index_insert(i_customer_id, custKey(cid, did, wid), row, wh_to_part(wid));
-  }
+        char tmp[3] = "OE";
+        row->set_value(C_MIDDLE, tmp);
+        char c_first[FIRSTNAME_LEN];
+        MakeAlphaString(FIRSTNAME_MINLEN, sizeof(c_first), c_first, wid - 1);
+        row->set_value(C_FIRST, c_first);
+        char street[20];
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_STREET_1, street);
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_STREET_2, street);
+        MakeAlphaString(10, 20, street, wid - 1);
+        row->set_value(C_CITY, street);
+        char state[2];
+        MakeAlphaString(2, 2, state, wid - 1); /* State */
+        row->set_value(C_STATE, state);
+        char zip[9];
+        MakeNumberString(9, 9, zip, wid - 1); /* Zip */
+        row->set_value(C_ZIP, zip);
+        char phone[16];
+        MakeNumberString(16, 16, phone, wid - 1); /* Phone */
+        row->set_value(C_PHONE, phone);
+        row->set_value(C_SINCE, uint64_t(0));
+        row->set_value(C_CREDIT_LIM, 50000.0);
+        char c_data[500];
+        MakeAlphaString(300, 500, c_data, wid - 1);
+        row->set_value(C_DATA, c_data);
+
+        if (RAND(10, wid - 1) == 0) {
+            char tmp[] = "GC";
+            row->set_value(C_CREDIT, tmp);
+        } else {
+            char tmp[] = "BC";
+            row->set_value(C_CREDIT, tmp);
+        }
+        row->set_value(C_DISCOUNT, (double)URand(1, 5000, wid - 1) / 10000.0);
+
+        row->set_value(C_BALANCE, -10.0);
+        row->set_value(C_YTD_PAYMENT, 10.0);
+        row->set_value(C_PAYMENT_CNT, uint64_t(1));
+        row->set_value(C_DELIVERY_CNT, uint64_t(0));
+
+    }
 }
 
 void tpcc_wl::init_tab_hist(uint64_t c_id, uint64_t d_id, uint64_t w_id) {
@@ -345,7 +447,8 @@ void tpcc_wl::init_tab_hist(uint64_t c_id, uint64_t d_id, uint64_t w_id) {
   row = &row_container;
 #endif
   uint64_t row_id;
-  t_history->get_new_row(row, wh_to_part(w_id), row_id);
+  uint64_t idx_primary = 0;
+  t_history->get_new_row(idx_primary, row, wh_to_part(w_id), row_id);
   row->set_primary_key(0);
   row->set_value(H_C_ID, c_id);
   row->set_value(H_C_D_ID, d_id);
@@ -370,8 +473,9 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
     row = &row_container;
 #endif
     uint64_t row_id;
-    t_order->get_new_row(row, wh_to_part(wid), row_id);
-    row->set_primary_key(orderKey(oid, did, wid));
+    uint64_t idx_primary = orderKey(oid, did, wid);
+    t_order->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    row->set_primary_key(idx_primary);
     uint64_t cid = perm[oid - 1];  //get_permutation();
     row->set_value(O_ID, oid);
     row->set_value(O_C_ID, cid);
@@ -388,15 +492,19 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
     row->set_value(O_ALL_LOCAL, uint64_t(1));
 
 #if TPCC_FULL
+#if AGGRESSIVE_INLINING
+#else
     index_insert(i_order, orderKey(oid, did, wid), row, wh_to_part(wid));
+#endif
 //    index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row,
 //                 wh_to_part(wid));
 #endif
 
     // ORDER-LINE
     for (uint64_t ol = 1; ol <= o_ol_cnt; ol++) {
-      t_orderline->get_new_row(row, wh_to_part(wid), row_id);
-      row->set_primary_key(orderlineKey(ol, oid, did, wid));
+      uint64_t idx_primary_1 = orderlineKey(ol, oid, did, wid);
+      t_orderline->get_new_row(idx_primary_1, row, wh_to_part(wid), row_id);
+      row->set_primary_key(idx_primary_1);
       row->set_value(OL_O_ID, oid);
       row->set_value(OL_D_ID, did);
       row->set_value(OL_W_ID, wid);
@@ -415,20 +523,27 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
       MakeAlphaString(24, 24, ol_dist_info, wid - 1);
       row->set_value(OL_DIST_INFO, ol_dist_info);
 #if TPCC_FULL
+#if AGGRESSIVE_INLINING
+#else
       index_insert(i_orderline, orderlineKey(ol, oid, did, wid), row, wh_to_part(wid));
+#endif
 #endif
     }
 
     // NEW ORDER
     if (oid > 2100) {
-      t_neworder->get_new_row(row, wh_to_part(wid), row_id);
-      row->set_primary_key(neworderKey(oid, did, wid));
+      uint64_t idx_primary_2 = neworderKey(oid, did, wid);
+      t_neworder->get_new_row(idx_primary_2, row, wh_to_part(wid), row_id);
+      row->set_primary_key(idx_primary_2);
       row->set_value(NO_O_ID, oid);
       row->set_value(NO_D_ID, did);
       row->set_value(NO_W_ID, wid);
 
 #if TPCC_FULL
+#if AGGRESSIVE_INLINING
+#else
       index_insert(i_neworder, neworderKey(oid, did, wid), row, wh_to_part(wid));
+#endif
 #endif
     }
   }
@@ -479,9 +594,12 @@ void* tpcc_wl::threadInitWarehouse(void* This) {
   wl->init_tab_stock(wid);
   for (uint64_t did = 1; did <= DIST_PER_WARE; did++) {
     wl->init_tab_cust(did, wid);
+#if AGGRESSIVE_INLINING
+    wl->init_tab_cust_last(did, wid);
+#endif
     wl->init_tab_order(did, wid);
-    for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++)
-      wl->init_tab_hist(cid, did, wid);
+//    for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++)
+//      wl->init_tab_hist(cid, did, wid);
   }
 
 #if CC_ALG == MICA

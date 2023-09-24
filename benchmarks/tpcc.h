@@ -23,6 +23,7 @@ class tpcc_wl : public workload {
   table_t* t_warehouse;
   table_t* t_district;
   table_t* t_customer;
+  table_t* t_customer_last;
   table_t* t_history;
   table_t* t_neworder;
   table_t* t_order;
@@ -30,16 +31,27 @@ class tpcc_wl : public workload {
   table_t* t_item;
   table_t* t_stock;
 
-  HASH_INDEX* i_item;
-  HASH_INDEX* i_warehouse;
-  HASH_INDEX* i_district;
-  HASH_INDEX* i_customer_id;
-  HASH_INDEX* i_customer_last;
-  HASH_INDEX* i_stock;
-    HASH_INDEX* i_order;
-  ORDERED_INDEX* i_order_cust;
-    HASH_INDEX* i_neworder;
-    HASH_INDEX* i_orderline;
+//  ORDERED_INDEX* i_item; //HASH_INDEX
+//  ORDERED_INDEX* i_warehouse; //HASH_INDEX
+//  ORDERED_INDEX* i_district;//HASH_INDEX
+//  ORDERED_INDEX* i_customer_id;//HASH_INDEX
+////  ORDERED_INDEX* i_customer_last;//HASH_INDEX
+//  ORDERED_INDEX* i_stock;//HASH_INDEX
+//    ORDERED_INDEX* i_order;//HASH_INDEX
+////  ORDERED_INDEX* i_order_cust;
+//    ORDERED_INDEX* i_neworder;//HASH_INDEX
+//    ORDERED_INDEX* i_orderline;//HASH_INDEX
+
+    HASH_INDEX* i_item; //HASH_INDEX
+    HASH_INDEX* i_warehouse; //HASH_INDEX
+    HASH_INDEX* i_district;//HASH_INDEX
+    HASH_INDEX* i_customer_id;//HASH_INDEX
+    HASH_INDEX* i_customer_last;//HASH_INDEX
+    HASH_INDEX* i_stock;//HASH_INDEX
+    HASH_INDEX* i_order;//HASH_INDEX
+    HASH_INDEX* i_order_cust;
+    HASH_INDEX* i_neworder;//HASH_INDEX
+    HASH_INDEX* i_orderline;//HASH_INDEX
 
   bool** delivering;
   uint32_t next_tid;
@@ -53,6 +65,7 @@ class tpcc_wl : public workload {
   void init_tab_dist(uint64_t w_id);
   void init_tab_stock(uint64_t w_id);
   void init_tab_cust(uint64_t d_id, uint64_t w_id);
+  void init_tab_cust_last(uint64_t d_id, uint64_t w_id);
   void init_tab_hist(uint64_t c_id, uint64_t d_id, uint64_t w_id);
   void init_tab_order(uint64_t d_id, uint64_t w_id);
 

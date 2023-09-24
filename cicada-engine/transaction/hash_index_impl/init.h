@@ -16,24 +16,26 @@ HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::HashIndex(
       expected_num_rows_(expected_num_rows),
       hash_(hash),
       key_equal_(key_equal) {
-  static_assert(std::is_trivially_copyable<Key>::value,
-                "trivially copyable keys required");
+  static_assert(std::is_trivially_copyable<Key>::value, "trivially copyable keys required");
 
   // bucket_count_ = expected_num_rows * 11 / 10 /
   //                 Bucket::kBucketSize;  // 10% provisioning
-  bucket_count_ =
-      expected_num_rows * 12 / 10 / Bucket::kBucketSize;  // 20% provisioning
+  bucket_count_ = expected_num_rows * 10 / 10 / Bucket::kBucketSize;  // 20% provisioning
   // bucket_count_ = expected_num_rows * 15 / 10 /
   //                 Bucket::kBucketSize;  // 50% provisioning
 
   bucket_count_ = ::mica::util::next_power_of_two(bucket_count_);
   bucket_count_mask_ = bucket_count_ - 1;
+
+#if AGGRESSIVE_INLINING
+    kkDataSize = main_tbl->get_table_total_th_size() + 8 + 8;
+#else
+    kkDataSize = kDataSize;
+#endif
 }
 
-template <class StaticConfig, bool UniqueKey, class Key, class Hash,
-          class KeyEqual>
-bool HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::init(
-    Transaction* tx) {
+template <class StaticConfig, bool UniqueKey, class Key, class Hash, class KeyEqual>
+bool HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::init(Transaction* tx) {
   Timing t(tx->context()->timing_stack(), &Stats::index_write);
 
   const uint64_t kBatchSize = 16;
@@ -44,7 +46,7 @@ bool HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::init(
     }
 
     RowAccessHandle rah(tx);
-    if (!rah.new_row(idx_tbl_, 0, Transaction::kNewRowID, true, kDataSize)) {
+    if (!rah.new_row(0, false, idx_tbl_, 0, Transaction::kNewRowID, true, kkDataSize)) {
       printf("failed to insert buckets\n");
       return false;
     }
@@ -54,12 +56,19 @@ bool HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::init(
     }
 
     auto new_bkt = reinterpret_cast<Bucket*>(rah.data());
-    for (uint64_t j = 0; j < Bucket::kBucketSize; j++)
-      new_bkt->values[j] = kNullRowID;
+    for (uint64_t j = 0; j < Bucket::kBucketSize; j++){
+        new_bkt->keys[j] = kNullRowID;
+#if AGGRESSIVE_INLINING
+        new_bkt->aggressiveRowHead[j] = kNullAggressiveRowHead;
+#else
+        new_bkt->values[j] = kNullRowID;
+#endif
+    }
+
     new_bkt->next = kNullRowID;
 
     if (i % kBatchSize == kBatchSize - 1 || i == bucket_count_ - 1) {
-      if (!tx->commit()) {
+      if (!tx->commit([](char* unused){ return true; })) {
         printf("failed to insert buckets\n");
         return false;
       }
