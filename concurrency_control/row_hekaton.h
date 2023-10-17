@@ -16,6 +16,8 @@ struct WriteHisEntry {
 	bool end_txn;
 	ts_t begin;
 	ts_t end;
+//    WriteHisEntry *next_history;
+//    WriteHisEntry *pre_history;
 	row_t * row;
 };
 
@@ -24,13 +26,14 @@ struct WriteHisEntry {
 class Row_hekaton {
 public:
 	void 			init(row_t * row);
-	RC 				access(txn_man * txn, TsType type, row_t * row);
+	RC 				access(txn_man * txn, TsType type, row_t * row );
 	RC 				prepare_read(txn_man * txn, row_t * row, ts_t commit_ts);
-	void 			post_process(txn_man * txn, ts_t commit_ts, RC rc);
+	void 			post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row= nullptr);
 
   void      lock();
   void      release();
   void      set_ts(ts_t commit_ts);
+  bool      get_exists_prewriter(){return _exists_prewrite;}
 
 private:
 	volatile bool 	blatch;
@@ -41,8 +44,10 @@ private:
 	uint32_t 		_his_oldest;
 	WriteHisEntry * _write_history; // circular buffer
 	bool  			_exists_prewrite;
-	
+
 	uint32_t 		_his_len;
+
+	uint32_t        tuple_size;
 };
 
 #endif

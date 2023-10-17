@@ -76,7 +76,7 @@ RC index_btree::index_read( idx_key_t key, itemid_t *& item) {
 
 RC 
 index_btree::index_read(  idx_key_t key,
-	itemid_t *& item, 
+	itemid_t *& item,
 	int part_id) {
 	
 	return index_read(  key, item, 0, part_id);
@@ -108,7 +108,7 @@ RC index_btree::index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id
     return rc;
 }
 RC index_btree::index_read(  idx_key_t key, itemid_t *& item,
-	uint64_t thd_id, int64_t part_id) 
+	uint64_t thd_id, int64_t part_id)
 {
 	RC rc = Abort;
 	glob_param params;

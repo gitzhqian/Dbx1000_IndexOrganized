@@ -3,6 +3,9 @@
 #include "global.h"
 #include "helper.h"
 #include <unordered_map>
+#include "manager.h"
+#include "row_hekaton.h"
+#include "row.h"
 
 class workload;
 class thread_t;
@@ -101,8 +104,8 @@ public:
 	else
 		cleanup(rc);
 #elif CC_ALG == HEKATON
-        rc = validate_hekaton(rc);
-	cleanup(rc);
+       rc = validate_hekaton(rc, func);
+	   cleanup(rc);
 #elif CC_ALG == MICA
         if (rc == RCOK) {
             if (mica_tx->has_began()) {
@@ -155,11 +158,18 @@ public:
 	TxnType 		vll_txn_type;
 
 	// index_read methods
+#if CC_ALG == MICA
 	template <typename IndexT>
 	RC index_read(IndexT* index, idx_key_t key, void** row, int part_id);
-
-	template <typename IndexT>
+    template <typename IndexT>
 	RC index_read_multiple(IndexT* index, idx_key_t key, void** rows, size_t& count, int part_id);
+#else
+    template <typename IndexT>
+    RC index_read(IndexT* index, idx_key_t key, row_t** row, int part_id);
+    template <typename IndexT>
+    RC index_read_multiple(IndexT* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+#endif
+
 
 	template <typename IndexT>
 	RC index_read_range(IndexT* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
@@ -168,12 +178,22 @@ public:
 	RC index_read_range_rev(IndexT* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
 
 	// get_row methods
+#if CC_ALG == MICA
 #if !TPCC_CF
 	template <typename IndexT>
 	row_t* get_row(IndexT* index, void* row, int part_id, access_t type, void* row_head = nullptr);
 #else
 	template <typename IndexT>
 	row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type = NULL);
+#endif
+#else
+#if !TPCC_CF
+    template <typename IndexT>
+    row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type );
+#else
+    template <typename IndexT>
+	row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type = NULL);
+#endif
 #endif
 
 	// search (index_read + get_row)
@@ -242,7 +262,60 @@ private:
 	ts_t 			_cur_tid;
 	RC				validate_silo();
 #elif CC_ALG == HEKATON
-	RC 				validate_hekaton(RC rc);
+    template <typename Func>
+	RC  validate_hekaton(RC rc, const Func& func)
+    {
+        uint64_t starttime = get_sys_clock();
+        INC_STATS(get_thd_id(), debug1, get_sys_clock() - starttime);
+        ts_t commit_ts = glob_manager->get_ts(get_thd_id());
+        // validate the read set.
+#if ISOLATION_LEVEL == SERIALIZABLE
+        if (rc == RCOK)
+        {
+            for (int rid = 0; rid < row_cnt; rid ++)
+            {
+                if (accesses[rid]->type == WR) {
+                    continue;
+                }
+#if AGGRESSIVE_INLINING
+                if (accesses[rid]->orig_row != accesses[rid]->data){
+                    continue;
+                }
+#endif
+                rc = accesses[rid]->orig_row->manager->prepare_read(this,
+                                                                    accesses[rid]->data,
+                                                                    commit_ts);
+                if (rc == Abort){
+                    break;
+                }
+            }
+        }
+#endif
+
+#if AGGRESSIVE_INLINING == false
+        rc = apply_index_changes(rc);
+#endif
+
+        // postprocess
+        if (rc == RCOK) {
+            for (UInt32 i = 0; i < insert_cnt; i++) {
+                row_t * row = insert_rows[i];
+                row->manager->set_ts(commit_ts);
+            }
+        }
+        for (int rid = 0; rid < row_cnt; rid ++) {
+            if (accesses[rid]->type == RD){
+                continue;
+            }
+            accesses[rid]->orig_row->manager->post_process(this, commit_ts, rc, accesses[rid]->data);
+#if AGGRESSIVE_INLINING
+            if (rc == RCOK){
+                func(accesses[rid]->data->get_data());
+            }
+#endif
+        }
+        return rc;
+    }
 #endif
 
 };

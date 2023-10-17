@@ -161,11 +161,14 @@ void* ycsb_wl::init_table_slice() {
 //       printf("sets,,,,,");
 //    }
 
-    rc = the_table->get_new_row(idx_key, new_row, part_id, row_id);
+    rc = the_table->get_new_row(new_row, part_id, row_id, idx_key);
     assert(rc == RCOK);
 
     new_row->set_primary_key(primary_key);
     new_row->set_value(0, &primary_key);
+#if AGGRESSIVE_INLINING
+    new_row->init(idx_key, the_table, part_id);
+#endif
     Catalog* schema = the_table->get_schema();
 
     for (UInt32 fid = 0; fid < schema->get_field_cnt(); fid++) {

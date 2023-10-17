@@ -63,9 +63,12 @@ RC IndexArray::index_insert(txn_man* txn, idx_key_t key, row_t* row, int part_id
 
   return RCOK;
 }
+#if CC_ALG == MICA
+RC IndexArray::index_read(txn_man* txn, idx_key_t key, void** row, int part_id) {
+#else
+RC IndexArray::index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id) {
+#endif
 
-RC IndexArray::index_read(txn_man* txn, idx_key_t key, void** row,
-                          int part_id) {
   (void)txn;
   (void)part_id;
 

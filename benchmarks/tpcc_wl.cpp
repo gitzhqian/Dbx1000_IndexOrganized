@@ -150,7 +150,7 @@ void tpcc_wl::init_tab_item() {
 #endif
     uint64_t row_id;
     uint64_t idx_primary = itemKey(i);
-    t_item->get_new_row(idx_primary, row, 0, row_id);
+    t_item->get_new_row( row, 0, row_id, idx_primary);
     row->set_primary_key(idx_primary);
     row->set_value(I_ID, i);
     row->set_value(I_IM_ID, URand(1L, 10000L, 0));
@@ -182,7 +182,7 @@ void tpcc_wl::init_tab_wh(uint32_t wid) {
 #endif
   uint64_t row_id;
   uint64_t idx_primary = warehouseKey(wid);
-  t_warehouse->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+  t_warehouse->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
   row->set_primary_key(idx_primary);
 
   row->set_value(W_ID, wid);
@@ -222,7 +222,7 @@ void tpcc_wl::init_tab_dist(uint64_t wid) {
 #endif
     uint64_t row_id;
     uint64_t idx_primary = distKey(did, wid);
-    t_district->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    t_district->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
     row->set_primary_key(idx_primary);
 
     row->set_value(D_ID, did);
@@ -265,7 +265,7 @@ void tpcc_wl::init_tab_stock(uint64_t wid) {
 #endif
     uint64_t row_id;
     uint64_t idx_primary = stockKey(sid, wid);
-    t_stock->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    t_stock->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
     row->set_primary_key(idx_primary);
     row->set_value(S_I_ID, sid);
     row->set_value(S_W_ID, wid);
@@ -313,7 +313,7 @@ void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
 #endif
         uint64_t row_id;
         uint64_t idx_primary = custKey(cid, did, wid);
-        t_customer->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+        t_customer->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
         row->set_primary_key(idx_primary);
 
         row->set_value(C_ID, cid);
@@ -383,7 +383,7 @@ void tpcc_wl::init_tab_cust_last(uint64_t did, uint64_t wid) {
 #endif
         uint64_t row_id;
         uint64_t idx_primary = custKey(cid, did, wid);
-        t_customer_last->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+        t_customer_last->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
         row->set_primary_key(idx_primary);
 
         row->set_value(C_ID, cid);
@@ -448,7 +448,7 @@ void tpcc_wl::init_tab_hist(uint64_t c_id, uint64_t d_id, uint64_t w_id) {
 #endif
   uint64_t row_id;
   uint64_t idx_primary = 0;
-  t_history->get_new_row(idx_primary, row, wh_to_part(w_id), row_id);
+  t_history->get_new_row(row, wh_to_part(w_id), row_id, idx_primary);
   row->set_primary_key(0);
   row->set_value(H_C_ID, c_id);
   row->set_value(H_C_D_ID, d_id);
@@ -474,7 +474,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
 #endif
     uint64_t row_id;
     uint64_t idx_primary = orderKey(oid, did, wid);
-    t_order->get_new_row(idx_primary, row, wh_to_part(wid), row_id);
+    t_order->get_new_row(row, wh_to_part(wid), row_id, idx_primary);
     row->set_primary_key(idx_primary);
     uint64_t cid = perm[oid - 1];  //get_permutation();
     row->set_value(O_ID, oid);
@@ -503,7 +503,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
     // ORDER-LINE
     for (uint64_t ol = 1; ol <= o_ol_cnt; ol++) {
       uint64_t idx_primary_1 = orderlineKey(ol, oid, did, wid);
-      t_orderline->get_new_row(idx_primary_1, row, wh_to_part(wid), row_id);
+      t_orderline->get_new_row(row, wh_to_part(wid), row_id, idx_primary_1);
       row->set_primary_key(idx_primary_1);
       row->set_value(OL_O_ID, oid);
       row->set_value(OL_D_ID, did);
@@ -533,7 +533,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
     // NEW ORDER
     if (oid > 2100) {
       uint64_t idx_primary_2 = neworderKey(oid, did, wid);
-      t_neworder->get_new_row(idx_primary_2, row, wh_to_part(wid), row_id);
+      t_neworder->get_new_row(row, wh_to_part(wid), row_id, idx_primary_2);
       row->set_primary_key(idx_primary_2);
       row->set_value(NO_O_ID, oid);
       row->set_value(NO_D_ID, did);

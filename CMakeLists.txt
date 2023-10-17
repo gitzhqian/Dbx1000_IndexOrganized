@@ -13,7 +13,7 @@ add_definitions(-DNOGRAPHITE=1)
 
 
 # include header files
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/cicada-engine/alloc/ ${PROJECT_SOURCE_DIR}/cicada-engine/transaction/ ${PROJECT_SOURCE_DIR}/cicada-engine/util/  ${PROJECT_SOURCE_DIR}/benchmarks/ ${PROJECT_SOURCE_DIR}/concurrency_control/ ${PROJECT_SOURCE_DIR}/storage/ ${PROJECT_SOURCE_DIR}/system/)
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}  ${PROJECT_SOURCE_DIR}/cicada-engine/alloc/  ${PROJECT_SOURCE_DIR}/cicada-engine/transaction/  ${PROJECT_SOURCE_DIR}/cicada-engine/util/  ${PROJECT_SOURCE_DIR}/benchmarks/ ${PROJECT_SOURCE_DIR}/concurrency_control/ ${PROJECT_SOURCE_DIR}/storage/ ${PROJECT_SOURCE_DIR}/system/)
 # lib files
 #LINK_DIRECTORIES(${PROJECT_SOURCE_DIR}/libs)
 file(GLOB_RECURSE SRC_FILES  cicada-engine/alloc/*.cc cicada-engine/transaction/*.cc cicada-engine/transaction/hash_index_impl/*.h cicada-engine/util/*.cc benchmarks/*.cpp concurrency_control/*.cpp storage/*.cpp system/*.cpp config.cpp)

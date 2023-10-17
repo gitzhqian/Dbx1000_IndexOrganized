@@ -34,6 +34,15 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 	_part_id = part_id;
 	this->table = host_table;
 	is_deleted = 0;
+#if AGGRESSIVE_INLINING
+	this->next_row = nullptr;
+	this->successor = nullptr;
+    this->begin_txn = false;
+    this->end_txn = false;
+    this->begin = 0;
+    this->end = INF;
+#endif
+
 #if CC_ALG == MICA
   // We ignore the given row_id argument to init() because it contains an
   // uninitialized value and is not used by the workload.
@@ -88,24 +97,27 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 		break;
 	}
 #else
-#if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
-	// We can just use &data[0].
-#else
-	Catalog * schema = host_table->get_schema();
-	int tuple_size = schema->get_tuple_size();
-	data = (char *) mem_allocator.alloc(sizeof(char) * tuple_size, part_id);
-#endif
+    #if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+        // We can just use &data[0].
+    #else
+        #if AGGRESSIVE_INLINING == false
+            Catalog * schema = host_table->get_schema();
+            int tuple_size = schema->get_tuple_size();
+            data = (char *) mem_allocator.alloc(sizeof(char) * tuple_size, part_id);
+        #endif
+    #endif
 #endif
 	return RCOK;
 }
-void
-row_t::init(int size)
+void row_t::init(int size)
 {
 #if CC_ALG != MICA
 #if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
 	// We can just use &data[0].
 #else
+#if AGGRESSIVE_INLINING == false
 	data = (char *) mem_allocator.alloc(size, 64);
+#endif
 #endif
 #else
 	assert(false);
@@ -280,7 +292,7 @@ void row_t::free_row() {
 #endif
 }
 
-RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
+RC row_t::get_row(access_t type, txn_man * txn, row_t *& row, row_t *& org_row) {
 #if CC_ALG == MICA
 	printf("deprecated\n");
 	assert(false);
@@ -376,9 +388,28 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 	txn->cur_row = (row_t *) mem_allocator.alloc(alloc_size(get_table()), this->get_part_id());
 	txn->cur_row->init(get_table(), this->get_part_id());
   #endif
-
 	// TODO need to initialize the table/catalog information.
 	TsType ts_type = (type == RD)? R_REQ : P_REQ;
+#if AGGRESSIVE_INLINING
+    if (ts_type == R_REQ) {
+        if (txn->get_ts() > row->begin){
+            txn->cur_row = row; // read row
+            rc = RCOK;
+        }else{
+            rc = this->manager->access(txn, ts_type, row);
+            row = txn->cur_row; // read row
+        }
+    } else {
+        rc = this->manager->access(txn, ts_type, row);
+        org_row = txn->cur_row;
+        txn->cur_row = row; // write row
+    }
+
+    if (rc != Abort) {
+        row->table = get_table();
+        assert(row->get_schema() == this->get_schema());
+    }
+#else
 	rc = this->manager->access(txn, ts_type, row);
 	if (rc == RCOK ) {
 		row = txn->cur_row;
@@ -394,6 +425,7 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row) {
 		row->table = get_table();
 		assert(row->get_schema() == this->get_schema());
 	}
+#endif
 	return rc;
 #elif CC_ALG == OCC
 	// OCC always make a local copy regardless of read or write

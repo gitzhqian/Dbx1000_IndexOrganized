@@ -184,10 +184,10 @@ RC workload::init_schema(string schema_file) {
         HASH_INDEX* index = (HASH_INDEX*)mem_allocator.alloc(sizeof(HASH_INDEX), -1);
         new (index) HASH_INDEX();
 
-#if INDEX_STRUCT == IDX_HASH || INDEX_STRUCT == IDX_MICA
+#if INDEX_STRUCT == IndexHash || INDEX_STRUCT == IDX_MICA
         index->init(part_cnt, tables[tname], table_size * 2);
 #else
-//        index->init(part_cnt, tables[tname]);
+        index->init(part_cnt, tables[tname]);
 #endif
         hash_indexes[iname] = index;
       }
@@ -218,8 +218,9 @@ RC workload::init_schema(string schema_file) {
 
 template <class IndexT>
 void workload::index_insert(IndexT* index, uint64_t key, row_t* row, int part_id) {
+    RC rc;
 #if AGGRESSIVE_INLINING
-    auto rc = RCOK;
+    rc = RCOK;
     return;
 #endif
 
@@ -247,7 +248,7 @@ void workload::index_insert(IndexT* index, uint64_t key, row_t* row, int part_id
     break;
   }
 #else
-  auto rc = index->index_insert(NULL, key, row, part_id);
+  rc = index->index_insert(NULL, key, row, part_id);
   assert(rc == RCOK);
 #endif
 }

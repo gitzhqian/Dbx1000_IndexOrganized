@@ -42,8 +42,8 @@ public:
     RC          index_remove(txn_man* txn, idx_key_t key, row_t*, int part_id){return RCOK;}
 
     RC          index_read(txn_man* txn, idx_key_t key, row_t** row, int part_id);
-    RC index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
-                           size_t& count, int part_id){return RCOK;}
+    RC          index_read_multiple(txn_man* txn, idx_key_t key, row_t** rows,
+                                     size_t& count, int part_id){return RCOK;}
 
     RC index_read_range(txn_man* txn, idx_key_t min_key, idx_key_t max_key,
                         row_t** rows, size_t& count, int part_id){return RCOK;}

@@ -57,6 +57,8 @@ RC ycsb_txn_man::run_txn(base_query* query) {
           //                  for (int fid = 0; fid < schema->get_field_cnt(); fid++) {
 #if !TPCC_CF
           const char* data = row->get_data() + column * kColumnSize;
+//          string ss(data);
+//          printf("ss: %s, \n", ss.c_str());
 #else
           const char* data = row->cf_data[0] + column * kColumnSize;
 #endif

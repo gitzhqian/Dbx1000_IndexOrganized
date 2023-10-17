@@ -4,7 +4,7 @@
 /***********************************************/
 // Simulation + Hardware
 /***********************************************/
-#define THREAD_CNT					2
+#define THREAD_CNT					4
 #define PART_CNT					1
 // each transaction only accesses 1 virtual partition. But the lock/ts manager and index are not aware of such partitioning. VIRTUAL_PART_CNT describes the request distribution and is only used to generate queries. For HSTORE, VIRTUAL_PART_CNT should be the same as PART_CNT.
 #define VIRTUAL_PART_CNT			1
@@ -14,7 +14,7 @@
 // # of transactions to run for warmup
 #define WARMUP						0
 // YCSB or TPCC or TATP
-#define WORKLOAD 					TPCC
+#define WORKLOAD 					YCSB
 // print the transaction latency distribution
 #define PRT_LAT_DISTR				false
 #define STATS_ENABLE				true
@@ -41,8 +41,8 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						MICA
-#define ISOLATION_LEVEL 			SERIALIZABLE
+#define CC_ALG 						HEKATON    // MICA
+#define ISOLATION_LEVEL 			SERIALIZABLE  //REPEATABLE_READ
 
 // all transactions acquire tuples according to the primary key order.
 #define KEY_ORDER					false
@@ -58,7 +58,7 @@
 #define ENABLE_LATCH				false
 #define CENTRAL_INDEX				false
 #define CENTRAL_MANAGER 			false
-#define INDEX_STRUCT				IDX_MICA
+#define INDEX_STRUCT				IndexHash  // IDX_MICA  IndexHash
 #define BTREE_ORDER 				16
 
 // [DL_DETECT]
@@ -119,7 +119,7 @@
 // ==== [YCSB] ====
 #define INIT_PARALLELISM			1
 #define SYNTH_TABLE_SIZE 			(1024 * 1000)
-#define ZIPF_THETA 					0.6
+#define ZIPF_THETA 					0.9
 #define READ_PERC 					0.5
 #define WRITE_PERC 					0.5
 #define SCAN_PERC 					0
@@ -137,7 +137,7 @@
 // are not modeled.
 #define TPCC_ACCESS_ALL 			false
 #define WH_UPDATE					true
-#define NUM_WH 						1
+#define NUM_WH 						2
 //
 #define TPCC_INSERT_ROWS  false
 #define TPCC_DELETE_ROWS  false
@@ -160,7 +160,7 @@ enum TPCCTxnType {TPCC_ALL,
 extern TPCCTxnType 					g_tpcc_txn_type;
 
 //#define TXN_TYPE					TPCC_ALL
-#define PERC_PAYMENT 				0.2
+#define PERC_PAYMENT 				0.5
 #define FIRSTNAME_MINLEN 			8
 #define FIRSTNAME_LEN 				16
 #define LASTNAME_LEN 				16
@@ -268,6 +268,7 @@ extern TestCases					g_test_case;
 #define PRINT_LAT_DIST false
 
 
-#define AGGRESSIVE_INLINING   false
+#define AGGRESSIVE_INLINING   true
+#define USE_INLINED_DATA      true
 
 #endif

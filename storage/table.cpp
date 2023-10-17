@@ -11,7 +11,6 @@ void table_t::init(Catalog* schema, uint64_t part_cnt) {
   this->part_cnt = part_cnt;
 
 #if CC_ALG == MICA
-
   for (uint64_t part_id = 0; part_id < part_cnt; part_id++) {
     uint64_t thread_id = part_id % g_thread_cnt;
     ::mica::util::lcore.pin_thread(thread_id);
@@ -62,7 +61,7 @@ RC table_t::get_new_row(row_t*& row) {
 }
 
 // the row is not stored locally. the pointer must be maintained by index structure.
-RC table_t::get_new_row(uint64_t idx_key, row_t*& row, uint64_t part_id, uint64_t& row_id) {
+RC table_t::get_new_row( row_t*& row, uint64_t part_id, uint64_t& row_id, uint64_t idx_key) {
   RC rc = RCOK;
 
 // XXX: this has a race condition; should be used just for non-critical purposes
@@ -72,8 +71,13 @@ RC table_t::get_new_row(uint64_t idx_key, row_t*& row, uint64_t part_id, uint64_
   assert(row != NULL);
 // We do not need a new row instance because MICA has it.
 #else
-  row = (row_t*)mem_allocator.alloc(row_t::alloc_size(this), part_id);
+ #if AGGRESSIVE_INLINING
+      this->table_index->index_allocate(idx_key, row, part_id);
+ #else
+      row = (row_t*)mem_allocator.alloc(row_t::alloc_size(this), part_id);
+ #endif
 #endif
+
   rc = row->init(idx_key, this, part_id, row_id);
   row->init_manager(row);
 

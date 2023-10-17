@@ -165,8 +165,12 @@ row_t* tpcc_txn_man::payment_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
-//  row_t* rows[100];
-  void* rows[100];
+#if CC_ALG == MICA
+    void* rows[100];
+#else
+    row_t* rows[100];
+#endif
+
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
   if (rc != RCOK) {
@@ -654,7 +658,12 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
+#if CC_ALG == MICA
     void* rows[100];
+#else
+    row_t* rows[100];
+#endif
+
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
   if (rc != RCOK) {
@@ -664,7 +673,7 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   if (count == 0) return NULL;
   assert(count != 100);
 
-  auto mid = const_cast<void *>(rows[count / 2]);
+  auto mid =  rows[count / 2] ;
 #if !TPCC_CF
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
   auto local = get_row(index, mid, part_id, RD);
@@ -774,8 +783,7 @@ RC tpcc_txn_man::run_order_status(tpcc_query* query) {
   auto c_id = arg.c_id;
   row_t* customer;
   if (!arg.by_last_name)
-    customer =
-        order_status_getCustomerByCustomerId(arg.w_id, arg.d_id, arg.c_id);
+    customer = order_status_getCustomerByCustomerId(arg.w_id, arg.d_id, arg.c_id);
   else
     customer = order_status_getCustomerByLastName(arg.w_id, arg.d_id,
                                                   arg.c_last, &c_id);

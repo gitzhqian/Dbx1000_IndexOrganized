@@ -1,6 +1,7 @@
 #pragma once
 
 #include <global.h>
+#include "index_hash.h"
 
 
 // TODO sequential scan is not supported yet.
@@ -16,7 +17,7 @@ public:
 	// records for new rows. get_new_row returns the pointer to a
 	// new row.
 	RC get_new_row(row_t *& row); // this is equivalent to insert()
-	RC get_new_row(uint64_t idx_key, row_t *& row, uint64_t part_id, uint64_t &row_id);
+	RC get_new_row( row_t *& row, uint64_t part_id, uint64_t &row_id, uint64_t idx_key=0);
 
 	void delete_row(); // TODO delete_row is not supportet yet
 
@@ -25,6 +26,9 @@ public:
 	const char * get_table_name() { return table_name; };
 
 	Catalog * 		schema{};
+	void add_table_index(IndexHash *the_index){
+	    this->table_index = the_index;
+	}
 
 #if CC_ALG == MICA
 	MICADB* mica_db{};
@@ -36,4 +40,5 @@ private:
 	// uint64_t  		cur_tab_size;
 	uint64_t        part_cnt;
 	char 			pad[CL_SIZE - sizeof(void *)*3];
+    IndexHash*      table_index;
 };
