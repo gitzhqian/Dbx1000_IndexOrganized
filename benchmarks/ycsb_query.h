@@ -23,14 +23,15 @@ class ycsb_request {
 class ycsb_query : public base_query {
  public:
   void init(uint64_t thd_id, workload* h_wl) { assert(false); };
-  void init(uint64_t thd_id, workload* h_wl, Query_thd* query_thd);
+  void init(uint64_t thd_id, workload* h_wl, Query_thd* query_thd,std::vector<uint64_t> &insert_keys, uint64_t &qid);
   static void calculateDenom();
 
   uint64_t request_cnt;
   ycsb_request* requests;
 
- private:
-  void gen_requests(uint64_t thd_id, workload* h_wl);
+
+private:
+  void gen_requests(uint64_t thd_id, workload* h_wl,std::vector<uint64_t> &insert_keys, uint64_t &qid);
   // for Zipfian distribution
   static double zeta(uint64_t n, double theta);
   uint64_t zipf(uint64_t n, double theta);

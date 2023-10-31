@@ -257,7 +257,10 @@ void Stats::print(double sim_time) {
 		printf("[summary] stock_level  (%7ld, %7ld)\n",
 			total_tpcc_stock_level_commit, total_tpcc_stock_level_abort);
 	}
-	printf("[summary] tput=%.0lf\n", total_txn_cnt / sim_time);
+	printf("[summary] tput(txn/s)=%.0lf\n", total_txn_cnt / sim_time);
+//    printf("[summary] throughput(ops/s) =%f\n" ,
+//           ((total_txn_cnt * g_req_per_query) / (total_run_time / BILLION))* THREAD_CNT);
+
 	if (g_prt_lat_distr)
 		print_lat_distr();
 }

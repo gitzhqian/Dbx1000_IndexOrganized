@@ -6,6 +6,7 @@
 #include "index_hash.h"
 #include "index_array.h"
 #include "index_btree.h"
+#include "btree_store.h"
 //#include "index_mbtree.h"
 #include "index_mica.h"
 //#include "index_mica_mbtree.h"
@@ -108,9 +109,9 @@ RC workload::init_schema(string schema_file) {
           }
           elem_num++;
         }
-#if WORKLOAD == YCSB
-        size = MAX_TUPLE_SIZE;
-#endif
+//#if WORKLOAD == YCSB
+//        size = MAX_TUPLE_SIZE;
+//#endif
         assert(elem_num == 3 || elem_num == 4);
         schema->add_col((char*)name.c_str(), size, (char*)type.c_str(), cf);
         col_count++;
@@ -172,7 +173,7 @@ RC workload::init_schema(string schema_file) {
         ORDERED_INDEX* index = (ORDERED_INDEX*)mem_allocator.alloc(sizeof(ORDERED_INDEX), -1);
         new (index) ORDERED_INDEX();
 
-        index->init(part_cnt, tables[tname]);
+        index->initIndexBtree(part_cnt, tables[tname]);
         ordered_indexes[iname] = index;
       } else if (strncmp(iname.c_str(), "ARRAY_", 6) == 0) {
         ARRAY_INDEX* index = (ARRAY_INDEX*)mem_allocator.alloc(sizeof(ARRAY_INDEX), -1);
@@ -183,7 +184,6 @@ RC workload::init_schema(string schema_file) {
       } else if (strncmp(iname.c_str(), "HASH_", 5) == 0) {
         HASH_INDEX* index = (HASH_INDEX*)mem_allocator.alloc(sizeof(HASH_INDEX), -1);
         new (index) HASH_INDEX();
-
 #if INDEX_STRUCT == IndexHash || INDEX_STRUCT == IDX_MICA
         index->init(part_cnt, tables[tname], table_size * 2);
 #else
@@ -219,6 +219,7 @@ RC workload::init_schema(string schema_file) {
 template <class IndexT>
 void workload::index_insert(IndexT* index, uint64_t key, row_t* row, int part_id) {
     RC rc;
+    printf("index insert. \n");
 #if AGGRESSIVE_INLINING
     rc = RCOK;
     return;
@@ -265,14 +266,14 @@ void workload::index_insert(IndexArray* index, uint64_t key, row_t* row,
 }
 
 template <>
-void workload::index_insert(IndexMBTree* index, uint64_t key, row_t* row,
-                            int part_id) {
+void workload::index_insert(IndexBtree* index, uint64_t key, row_t* row, int part_id) {
 #if CC_ALG == MICA
   row = (row_t*)row->get_row_id();
 #endif
 
-//  auto rc = index->index_insert(NULL, key, row, part_id);
-//  assert(rc == RCOK);
+  auto rc = index->index_insert(NULL, key, row, sizeof(uint64_t), part_id);
+//  printf("insert key:%lu. \n", key);
+  assert(rc == RCOK);
 }
 
 template void workload::index_insert(HASH_INDEX* index, uint64_t key, row_t* row,

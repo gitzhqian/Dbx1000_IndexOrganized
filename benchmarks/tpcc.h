@@ -31,27 +31,27 @@ class tpcc_wl : public workload {
   table_t* t_item;
   table_t* t_stock;
 
-//  ORDERED_INDEX* i_item; //HASH_INDEX
-//  ORDERED_INDEX* i_warehouse; //HASH_INDEX
-//  ORDERED_INDEX* i_district;//HASH_INDEX
-//  ORDERED_INDEX* i_customer_id;//HASH_INDEX
-////  ORDERED_INDEX* i_customer_last;//HASH_INDEX
-//  ORDERED_INDEX* i_stock;//HASH_INDEX
-//    ORDERED_INDEX* i_order;//HASH_INDEX
-////  ORDERED_INDEX* i_order_cust;
-//    ORDERED_INDEX* i_neworder;//HASH_INDEX
-//    ORDERED_INDEX* i_orderline;//HASH_INDEX
+  ORDERED_INDEX* i_item; //HASH_INDEX
+  ORDERED_INDEX* i_warehouse; //HASH_INDEX
+  ORDERED_INDEX* i_district;//HASH_INDEX
+  ORDERED_INDEX* i_customer_id;//HASH_INDEX
+  ORDERED_INDEX* i_customer_last;//HASH_INDEX
+  ORDERED_INDEX* i_stock;//HASH_INDEX
+    ORDERED_INDEX* i_order;//HASH_INDEX
+  ORDERED_INDEX* i_order_cust;
+    ORDERED_INDEX* i_neworder;//HASH_INDEX
+    ORDERED_INDEX* i_orderline;//HASH_INDEX
 
-    HASH_INDEX* i_item; //HASH_INDEX
-    HASH_INDEX* i_warehouse; //HASH_INDEX
-    HASH_INDEX* i_district;//HASH_INDEX
-    HASH_INDEX* i_customer_id;//HASH_INDEX
-    HASH_INDEX* i_customer_last;//HASH_INDEX
-    HASH_INDEX* i_stock;//HASH_INDEX
-    HASH_INDEX* i_order;//HASH_INDEX
-    HASH_INDEX* i_order_cust;
-    HASH_INDEX* i_neworder;//HASH_INDEX
-    HASH_INDEX* i_orderline;//HASH_INDEX
+//    HASH_INDEX* i_item; //HASH_INDEX
+//    HASH_INDEX* i_warehouse; //HASH_INDEX
+//    HASH_INDEX* i_district;//HASH_INDEX
+//    HASH_INDEX* i_customer_id;//HASH_INDEX
+//    HASH_INDEX* i_customer_last;//HASH_INDEX
+//    HASH_INDEX* i_stock;//HASH_INDEX
+//    HASH_INDEX* i_order;//HASH_INDEX
+//    HASH_INDEX* i_order_cust;
+//    HASH_INDEX* i_neworder;//HASH_INDEX
+//    HASH_INDEX* i_orderline;//HASH_INDEX
 
   bool** delivering;
   uint32_t next_tid;

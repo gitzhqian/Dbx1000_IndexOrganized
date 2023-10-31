@@ -15,7 +15,8 @@ class ycsb_wl : public workload {
   RC init_schema(string schema_file);
   RC get_txn_man(txn_man*& txn_manager, thread_t* h_thd);
   int key_to_part(uint64_t key);
-  HASH_INDEX* the_index;
+//  HASH_INDEX* the_index;
+  ORDERED_INDEX* the_index;
   table_t* the_table;
 
  private:

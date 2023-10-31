@@ -21,7 +21,8 @@ RC TestWorkload::init() {
 RC TestWorkload::init_schema(const char * schema_file) {
 	workload::init_schema(schema_file);
 	the_table = tables["MAIN_TABLE"];
-	the_index = hash_indexes["HASH_MAIN_INDEX"];
+//	the_index = hash_indexes["HASH_MAIN_INDEX"];
+    the_index = ordered_indexes["ORDERED_MAIN_INDEX"];
 	return RCOK;
 }
 

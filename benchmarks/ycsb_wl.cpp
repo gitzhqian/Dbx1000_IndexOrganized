@@ -44,14 +44,15 @@ RC ycsb_wl::init() {
   std::shuffle(shuffled_ids.begin(), shuffled_ids.end(), g);
 
   init_table_parallel();
-  //	init_table();
+  //init_table();
   return RCOK;
 }
 
 RC ycsb_wl::init_schema(string schema_file) {
   workload::init_schema(schema_file);
   the_table = tables["MAIN_TABLE"];
-  the_index = hash_indexes["HASH_MAIN_INDEX"];
+  //the_index = hash_indexes["HASH_MAIN_INDEX"];
+  the_index = ordered_indexes["ORDERED_MAIN_INDEX"];
   return RCOK;
 }
 
@@ -155,28 +156,28 @@ void* ycsb_wl::init_table_slice() {
     uint64_t primary_key = key;
     uint64_t idx_key = primary_key;
 
-    //todo: for test
-//    auto ret = sets.insert(idx_key);
-//    if (!ret.second){
-//       printf("sets,,,,,");
-//    }
-
     rc = the_table->get_new_row(new_row, part_id, row_id, idx_key);
     assert(rc == RCOK);
+//    printf("insert key=% " PRIu64 "\n", key);
 
-    new_row->set_primary_key(primary_key);
-    new_row->set_value(0, &primary_key);
-#if AGGRESSIVE_INLINING
-    new_row->init(idx_key, the_table, part_id);
-#endif
     Catalog* schema = the_table->get_schema();
-
+    new_row->set_primary_key(primary_key);
+#if AGGRESSIVE_INLINING
+    for (UInt32 fid = 0; fid < schema->get_field_cnt(); fid++) {
+        char value[6] = "hello";
+        new_row->set_value(fid, value);
+    }
+#else
+    new_row->set_value(0, &primary_key);
     for (UInt32 fid = 0; fid < schema->get_field_cnt(); fid++) {
       char value[6] = "hello";
       new_row->set_value(fid, value);
     }
-
     index_insert(the_index, idx_key, new_row, part_id);
+#endif
+
+//    char *data = new_row->get_data();
+//    index_insert(the_index, idx_key, new_row, part_id);
     // 		if (key % 1000000 == 0) {
     // 			printf("key=%" PRIu64 "\n", key);
     // #if INDEX_STRUCT == IDX_MICA

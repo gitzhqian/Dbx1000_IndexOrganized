@@ -29,11 +29,13 @@ public:
 	RC 				access(txn_man * txn, TsType type, row_t * row );
 	RC 				prepare_read(txn_man * txn, row_t * row, ts_t commit_ts);
 	void 			post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row= nullptr);
+	void            pushdown_version(txn_man * txn, row_t * row );
 
   void      lock();
   void      release();
   void      set_ts(ts_t commit_ts);
   bool      get_exists_prewriter(){return _exists_prewrite;}
+  void      set_exists_prewriter(bool write){_exists_prewrite = write;}
 
 private:
 	volatile bool 	blatch;

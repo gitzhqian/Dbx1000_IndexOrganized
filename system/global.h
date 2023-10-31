@@ -185,6 +185,8 @@ extern UInt32 g_part_per_txn;
 extern double g_perc_multi_part;
 extern double g_read_perc;
 extern double g_write_perc;
+extern double g_scan_perc;
+extern double g_insert_perc;
 extern double g_zipf_theta;
 extern UInt64 g_synth_table_size;
 extern UInt32 g_req_per_query;
@@ -225,7 +227,7 @@ typedef uint64_t idx_key_t; // key id for index
 typedef uint64_t (*func_ptr)(idx_key_t);	// part_id func_ptr(index_key);
 
 /* general concurrency control */
-enum access_t {RD, WR, XP, SCAN, PEEK, SKIP};
+enum access_t {RD, WR, XP, SCAN, PEEK, SKIP, INS};
 /* LOCK */
 enum lock_t {LOCK_EX, LOCK_SH, LOCK_NONE };
 /* TIMESTAMP */
@@ -251,9 +253,8 @@ enum TsType {R_REQ, W_REQ, P_REQ, XP_REQ};
 #endif
 
 #else  // IDX_HASH
-
+#define ORDERED_INDEX	IndexBtree
 #define HASH_INDEX		IndexHash
-#define ORDERED_INDEX	index_btree
 #define ARRAY_INDEX		IndexArray
 //#define ORDERED_INDEX		IndexMBTree
 #endif

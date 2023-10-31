@@ -49,27 +49,27 @@ RC tpcc_wl::init_schema(const char* schema_file) {
   t_item = tables["ITEM"];
   t_stock = tables["STOCK"];
 
-//  i_item = ordered_indexes["ORDERED_ITEM_IDX"];
-//  i_warehouse = ordered_indexes["ORDERED_WAREHOUSE_IDX"];
-//  i_district = ordered_indexes["ORDERED_DISTRICT_IDX"];
-//  i_customer_id = ordered_indexes["ORDERED_CUSTOMER_ID_IDX"];
-////  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
-//  i_stock = ordered_indexes["ORDERED_STOCK_IDX"];
-//  i_order = ordered_indexes["ORDERED_ORDER_IDX"];
-////  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
-//  i_neworder = ordered_indexes["ORDERED_NEWORDER_IDX"];
-//  i_orderline = ordered_indexes["ORDERED_ORDERLINE_IDX"];
-
-    i_item = hash_indexes["HASH_ITEM_IDX"];
-    i_warehouse = hash_indexes["HASH_WAREHOUSE_IDX"];
-    i_district = hash_indexes["HASH_DISTRICT_IDX"];
-    i_customer_id = hash_indexes["HASH_CUSTOMER_ID_IDX"];
-    i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
-    i_stock = hash_indexes["HASH_STOCK_IDX"];
-    i_order = hash_indexes["HASH_ORDER_IDX"];
+  i_item = ordered_indexes["ORDERED_ITEM_IDX"];
+  i_warehouse = ordered_indexes["ORDERED_WAREHOUSE_IDX"];
+  i_district = ordered_indexes["ORDERED_DISTRICT_IDX"];
+  i_customer_id = ordered_indexes["ORDERED_CUSTOMER_ID_IDX"];
+//  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
+  i_stock = ordered_indexes["ORDERED_STOCK_IDX"];
+  i_order = ordered_indexes["ORDERED_ORDER_IDX"];
 //  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
-    i_neworder = hash_indexes["HASH_NEWORDER_IDX"];
-    i_orderline = hash_indexes["HASH_ORDERLINE_IDX"];
+  i_neworder = ordered_indexes["ORDERED_NEWORDER_IDX"];
+  i_orderline = ordered_indexes["ORDERED_ORDERLINE_IDX"];
+
+//    i_item = hash_indexes["HASH_ITEM_IDX"];
+//    i_warehouse = hash_indexes["HASH_WAREHOUSE_IDX"];
+//    i_district = hash_indexes["HASH_DISTRICT_IDX"];
+//    i_customer_id = hash_indexes["HASH_CUSTOMER_ID_IDX"];
+//    i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
+//    i_stock = hash_indexes["HASH_STOCK_IDX"];
+//    i_order = hash_indexes["HASH_ORDER_IDX"];
+////  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
+//    i_neworder = hash_indexes["HASH_NEWORDER_IDX"];
+//    i_orderline = hash_indexes["HASH_ORDERLINE_IDX"];
 
 
     return RCOK;

@@ -19,16 +19,13 @@ RC TestTxnMan::run_txn(int type, int access_num) {
 
 RC TestTxnMan::testReadwrite(int access_num) {
 	RC rc = RCOK;
-#if CC_ALG == MICA
 	void * row;
-#else
-    row_t * row;
-#endif
+	itemid_t *item;
 
 	row_t * row_local;
-	rc = index_read(_wl->the_index, 0, &row, 0);
+	rc = index_read(_wl->the_index, 0, row, item , RD, 0);
 	assert(rc == RCOK);
-	row_local = get_row(_wl->the_index,  row , 0, WR);
+	row_local = get_row(_wl->the_index,  reinterpret_cast<row_t *>(row) ,item, 0, WR);
 	assert(rc == RCOK);
 	if (access_num == 0) {
 		char str[] = "hello";
@@ -63,17 +60,14 @@ RC
 TestTxnMan::testConflict(int access_num)
 {
 	RC rc = RCOK;
-#if CC_ALG == MICA
     void * row;
-#else
-    row_t * row;
-#endif
+    itemid_t * item;
 
 	row_t * row_local;
 	idx_key_t key;
 	for (key = 0; key < 1; key ++) {
-		rc = index_read(_wl->the_index, 0, &row, 0);
-		row_local = get_row(_wl->the_index,  row ,  0, WR);
+		rc = index_read(_wl->the_index, 0, row, item, RD, 0);
+		row_local = get_row(_wl->the_index,  reinterpret_cast<row_t *>(row) ,  item, 0, WR);
 		if (row_local) {
 			char str[] = "hello";
 			row_local->set_value(0, 1234);

@@ -33,7 +33,7 @@ RC IndexHash::init(uint64_t part_cnt, uint64_t bucket_cnt ) {
 RC IndexHash::init(uint64_t part_cnt, table_t* table, uint64_t bucket_cnt ) {
     this->table = table;
     init(part_cnt, bucket_cnt);
-    this->table->add_table_index(this);
+//    this->table->add_table_index(this);
 
   return RCOK;
 }

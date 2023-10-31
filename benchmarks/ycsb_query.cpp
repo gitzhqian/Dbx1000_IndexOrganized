@@ -8,7 +8,7 @@
 uint64_t ycsb_query::the_n = 0;
 double ycsb_query::denom = 0;
 
-void ycsb_query::init(uint64_t thd_id, workload* h_wl, Query_thd* query_thd) {
+void ycsb_query::init(uint64_t thd_id, workload* h_wl, Query_thd* query_thd, std::vector<uint64_t> &insert_keys, uint64_t &qid) {
   _query_thd = query_thd;
   requests = (ycsb_request*)mem_allocator.alloc(
       sizeof(ycsb_request) * g_req_per_query, thd_id);
@@ -17,7 +17,7 @@ void ycsb_query::init(uint64_t thd_id, workload* h_wl, Query_thd* query_thd) {
   zeta_2_theta = zeta(2, g_zipf_theta);
   assert(the_n != 0);
   assert(denom != 0);
-  gen_requests(thd_id, h_wl);
+  gen_requests(thd_id, h_wl, insert_keys, qid);
 }
 
 void ycsb_query::calculateDenom() {
@@ -58,7 +58,7 @@ uint64_t ycsb_query::zipf(uint64_t n, double theta) {
   return v;
 }
 
-void ycsb_query::gen_requests(uint64_t thd_id, workload* h_wl) {
+void ycsb_query::gen_requests(uint64_t thd_id, workload* h_wl,  std::vector<uint64_t> &insert_keys, uint64_t &qid) {
 #if CC_ALG == HSTORE
   assert(g_virtual_part_cnt == g_part_cnt);
 #endif
@@ -98,9 +98,11 @@ void ycsb_query::gen_requests(uint64_t thd_id, workload* h_wl) {
       req->rtype = RD;
     } else if (r >= g_read_perc && r <= g_write_perc + g_read_perc) {
       req->rtype = WR;
-    } else {
+    } else if(r >= (g_write_perc + g_read_perc) && r <= (g_write_perc + g_read_perc + g_scan_perc)) {
       req->rtype = SCAN;
       req->scan_len = SCAN_LEN;
+    } else{
+      req->rtype = INS;
     }
 
     // the request will access part_id.
@@ -124,7 +126,18 @@ void ycsb_query::gen_requests(uint64_t thd_id, workload* h_wl) {
         access_cnt++;
       } else
         continue;
-    } else {
+    }else if(req->rtype == INS){
+//        uint64_t idx = qid+rid;
+//        printf("insert key idx   :%lu. \n", idx);
+        qid++;
+        uint64_t insert_k = insert_keys[qid];
+//        printf("insert key icx    :%lu. \n", qid);
+//        uint64_t insert_k = table_size + primary_key;
+        req->key = insert_k;
+        all_keys.insert(req->key);
+        access_cnt ++;
+        g_key_order = false;
+    }  else {
       bool conflict = false;
       for (UInt32 i = 0; i < req->scan_len; i++) {
         primary_key = (row_id + i) * g_part_cnt + part_id;

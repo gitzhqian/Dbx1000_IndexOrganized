@@ -8,6 +8,7 @@
 #include "row.h"
 #include "index_hash.h"
 #include "index_btree.h"
+#include "btree_store.h"
 #include "index_mica.h"
 //#include "index_mbtree.h"
 #include "tpcc_const.h"
@@ -165,11 +166,7 @@ row_t* tpcc_txn_man::payment_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
-#if CC_ALG == MICA
-    void* rows[100];
-#else
-    row_t* rows[100];
-#endif
+  void* rows[100];
 
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
@@ -181,8 +178,9 @@ row_t* tpcc_txn_man::payment_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
   assert(count != 100);
 
   auto mid =  rows[count / 2];
+  itemid_t *item;
 #if !TPCC_CF
-  auto local = get_row(index, mid, part_id, WR);
+  auto local = get_row(index, reinterpret_cast<row_t *>(mid), item, part_id, WR);
 #else
   const access_t cf_access_type[] = {PEEK, WR, SKIP};
   auto local = get_row(index, mid, part_id, SKIP, cf_access_type);
@@ -246,7 +244,7 @@ bool tpcc_txn_man::payment_insertHistory(uint64_t c_id, uint64_t c_d_id,
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_history, row, part_id, row_id)) return false;
+  if (!insert_row(_wl->t_history, row, part_id, row_id, 0)) return false;
   row->set_primary_key(0);
   row->set_value(H_C_ID, c_id);
   row->set_value(H_C_D_ID, c_d_id);
@@ -392,7 +390,7 @@ bool tpcc_txn_man::new_order_createOrder(int64_t o_id, uint64_t d_id,
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_order, row, part_id, row_id)) return false;
+  if (!insert_row(_wl->t_order, row, part_id, row_id, 0)) return false;
   row->set_primary_key(orderKey(o_id, d_id, w_id));
   row->set_value(O_ID, o_id);
   row->set_value(O_D_ID, d_id);
@@ -430,7 +428,7 @@ bool tpcc_txn_man::new_order_createNewOrder(int64_t o_id, uint64_t d_id,
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_neworder, row, part_id, row_id)) return false;
+  if (!insert_row(_wl->t_neworder, row, part_id, row_id, 0)) return false;
   row->set_primary_key(neworderKey(o_id, d_id, w_id));
   row->set_value(NO_O_ID, o_id);
   row->set_value(NO_D_ID, d_id);
@@ -511,7 +509,7 @@ bool tpcc_txn_man::new_order_createOrderLine(
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_orderline, row, part_id, row_id)) return false;
+  if (!insert_row(_wl->t_orderline, row, part_id, row_id, 0)) return false;
   row->set_primary_key(orderlineKey(ol_number, o_id, d_id, w_id));
   row->set_value(OL_O_ID, o_id);
   row->set_value(OL_D_ID, d_id);
@@ -658,11 +656,7 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   auto key = custNPKey(d_id, w_id, c_last);
   auto part_id = wh_to_part(w_id);
 
-#if CC_ALG == MICA
-    void* rows[100];
-#else
-    row_t* rows[100];
-#endif
+  void* rows[100];
 
   size_t count = 100;
   auto rc = index_read_multiple(index, key, rows, count, part_id);
@@ -674,9 +668,10 @@ row_t* tpcc_txn_man::order_status_getCustomerByLastName(uint64_t w_id,
   assert(count != 100);
 
   auto mid =  rows[count / 2] ;
+  itemid_t *item;
 #if !TPCC_CF
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
-  auto local = get_row(index, mid, part_id, RD);
+  auto local = get_row(index, reinterpret_cast<row_t *>(mid), item, part_id, RD);
 #else
   auto local = get_row(index, mid , part_id, PEEK);
 #endif
@@ -697,7 +692,7 @@ row_t* tpcc_txn_man::order_status_getLastOrder(uint64_t w_id, uint64_t d_id,
   auto max_key = orderCustKey(1, c_id, d_id, w_id);
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[1];
+  void* rows[1];
   uint64_t count = 1;
 
   auto idx_rc = index_read_range(index, key, max_key, rows, count, part_id);
@@ -720,8 +715,9 @@ row_t* tpcc_txn_man::order_status_getLastOrder(uint64_t w_id, uint64_t d_id,
   if (count == 0) return NULL;
 
   auto shared =  rows[0];
+    itemid_t *item;
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
-  auto local = get_row(index, shared, part_id, RD);
+  auto local = get_row(index, reinterpret_cast<row_t *>(shared), item, part_id, RD);
 #else
   auto local = get_row(index, shared,  part_id, PEEK);
 #endif
@@ -738,7 +734,7 @@ bool tpcc_txn_man::order_status_getOrderLines(uint64_t w_id, uint64_t d_id,
   auto max_key = orderlineKey(15, o_id, d_id, w_id);
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[16];
+  void* rows[16];
   uint64_t count = 16;
 
   auto idx_rc = index_read_range(index, key, max_key, rows, count, part_id);
@@ -752,8 +748,9 @@ bool tpcc_txn_man::order_status_getOrderLines(uint64_t w_id, uint64_t d_id,
 
   for (uint64_t i = 0; i < count; i++) {
     auto shared = rows[i];
+      itemid_t *item;
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
-    auto local = get_row(index, shared, part_id, RD);
+    auto local = get_row(index, reinterpret_cast<row_t *>(shared), item, part_id, RD);
 #else
     auto local = get_row(index, shared,   part_id, PEEK);
 #endif
@@ -829,7 +826,7 @@ bool tpcc_txn_man::delivery_getNewOrder_deleteNewOrder(uint64_t d_id,
 #endif
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[1];
+  void* rows[1];
   uint64_t count = 1;
 
   auto idx_rc = index_read_range_rev(index, key, max_key, rows, count, part_id);
@@ -845,7 +842,8 @@ bool tpcc_txn_man::delivery_getNewOrder_deleteNewOrder(uint64_t d_id,
 
 #if CC_ALG != MICA
   auto shared = rows[0];
-  auto local = get_row(index, shared, part_id, WR);
+  itemid_t *item;
+  auto local = get_row(index, reinterpret_cast<row_t *>(shared), item, part_id, WR);
   if (local == NULL) return false;
 
   int64_t o_id;
@@ -949,7 +947,7 @@ bool tpcc_txn_man::delivery_updateOrderLine_sumOLAmount(uint64_t o_entry_d,
   auto max_key = orderlineKey(15, no_o_id, d_id, w_id);
   auto part_id = wh_to_part(w_id);
 
-  row_t* rows[16];
+  void* rows[16];
   uint64_t count = 16;
 
   auto idx_rc = index_read_range(index, key, max_key, rows, count, part_id);
@@ -958,8 +956,9 @@ bool tpcc_txn_man::delivery_updateOrderLine_sumOLAmount(uint64_t o_entry_d,
 
   for (uint64_t i = 0; i < count; i++) {
     auto shared = rows[i];
+    itemid_t *item;
 #if !TPCC_CF
-    auto local = get_row(index, shared, part_id, WR);
+    auto local = get_row(index, reinterpret_cast<row_t *>(shared), item, part_id, WR);
 #else
     const access_t cf_access_type[] = {PEEK, WR};
     auto local = get_row(index, shared, part_id, SKIP, cf_access_type);
@@ -1125,7 +1124,7 @@ bool tpcc_txn_man::stock_level_getStockCount(uint64_t ol_w_id, uint64_t ol_d_id,
   auto max_key = orderlineKey(15, ol_o_id - 20, ol_d_id, ol_w_id);
   auto part_id = wh_to_part(ol_w_id);
 
-  row_t* rows[301];
+  void* rows[301];
   uint64_t count = 301;
 
   auto idx_rc = index_read_range(index, key, max_key, rows, count, part_id);
@@ -1138,8 +1137,9 @@ bool tpcc_txn_man::stock_level_getStockCount(uint64_t ol_w_id, uint64_t ol_d_id,
 
   for (uint64_t i = 0; i < count; i++) {
     auto orderline_shared = rows[i];
+    itemid_t *item;
 #if CC_ALG != MICA && !defined(EMULATE_SNAPSHOT_FOR_1VCC)
-    auto orderline = get_row(index, orderline_shared, part_id, RD);
+    auto orderline = get_row(index, reinterpret_cast<row_t *>(orderline_shared), item, part_id, RD);
 #else
     auto orderline = get_row(index, orderline_shared,   part_id, PEEK);
 #endif

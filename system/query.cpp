@@ -19,7 +19,6 @@ Query_queue::init(workload * h_wl) {
 	_wl = h_wl;
 	_next_tid = 0;
 
-
 #if WORKLOAD == YCSB
 	ycsb_query::calculateDenom();
 #elif WORKLOAD == TPCC
@@ -34,8 +33,9 @@ Query_queue::init(workload * h_wl) {
 		pthread_create(&p_thds[i], NULL, threadInitQuery, this);
 	}
 	threadInitQuery(this);
-	for (uint32_t i = 0; i < g_thread_cnt - 1; i++)
-		pthread_join(p_thds[i], NULL);
+	for (uint32_t i = 0; i < g_thread_cnt - 1; i++){
+        pthread_join(p_thds[i], NULL);
+	}
 	int64_t end = get_server_clock();
 	printf("Query Queue Init Time %f\n", 1.0 * (end - begin) / 1000000000UL);
 }
@@ -52,8 +52,7 @@ Query_queue::get_next_query(uint64_t thd_id) {
 	return query;
 }
 
-void *
-Query_queue::threadInitQuery(void * This) {
+void *Query_queue::threadInitQuery(void * This) {
 	Query_queue * query_queue = (Query_queue *)This;
 	uint32_t tid = ATOM_FETCH_ADD(_next_tid, 1);
 
@@ -64,37 +63,53 @@ Query_queue::threadInitQuery(void * This) {
 	set_affinity(tid);
 #endif
 
-  mem_allocator.register_thread(tid);
+    mem_allocator.register_thread(tid);
 
-	query_queue->init_per_thread(tid);
-	return NULL;
+    query_queue->init_per_thread(tid);
+    return NULL;
 }
 
 /*************************************************/
 //     class Query_thd
 /*************************************************/
 
-void
-Query_thd::init(workload * h_wl, int thread_id) {
+void Query_thd::init(workload * h_wl, int thread_id) {
 	uint64_t request_cnt;
 	q_idx = 0;
 	// request_cnt = WARMUP / g_thread_cnt + MAX_TXN_PER_PART + 4;
 	request_cnt = WARMUP + MAX_TXN_PER_PART + ABORT_BUFFER_SIZE * 2;
 #if WORKLOAD == YCSB
-	queries = (ycsb_query *)
-		mem_allocator.alloc(sizeof(ycsb_query) * request_cnt, thread_id);
+	queries = (ycsb_query *) mem_allocator.alloc(sizeof(ycsb_query) * request_cnt, thread_id);
 	srand48_r(thread_id + 1, &buffer);
+
+    //generate insert keys
+    size_t thread_insert_keys = g_synth_table_size;
+    std::vector<uint64_t> random_insert_keys;
+    if (g_insert_perc >0) {
+        uint64_t table_size_ = g_synth_table_size / g_virtual_part_cnt;
+        uint64_t start_key = table_size_ + thread_id*thread_insert_keys;
+        uint64_t end_key = table_size_ + (thread_id+1)*thread_insert_keys;
+        for (int i = start_key; i < end_key; ++i)
+        {
+            random_insert_keys.push_back(i + 1);
+        }
+        //random the insert keys
+        std::random_shuffle(random_insert_keys.begin(), random_insert_keys.end());
+    }
+    uint64_t idx_inst = 0;
+
 #elif WORKLOAD == TPCC
 	queries = (tpcc_query *) mem_allocator.alloc(sizeof(tpcc_query) * request_cnt, thread_id);
 #elif WORKLOAD == TATP
 	queries = (tatp_query *) mem_allocator.alloc(sizeof(tatp_query) * request_cnt, thread_id);
 #else
-		assert(false);
+	assert(false);
 #endif
+
 	for (UInt32 qid = 0; qid < request_cnt; qid ++) {
 #if WORKLOAD == YCSB
 		new(&queries[qid]) ycsb_query();
-		queries[qid].init(thread_id, h_wl, this);
+		queries[qid].init(thread_id, h_wl, this, random_insert_keys, idx_inst);
 #elif WORKLOAD == TPCC
 		new(&queries[qid]) tpcc_query();
 		queries[qid].init(thread_id, h_wl);
@@ -105,8 +120,7 @@ Query_thd::init(workload * h_wl, int thread_id) {
 	}
 }
 
-base_query *
-Query_thd::get_next_query() {
+base_query *Query_thd::get_next_query() {
 	base_query * query = &queries[q_idx++];
 	return query;
 }

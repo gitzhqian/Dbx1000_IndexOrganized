@@ -68,9 +68,9 @@ RC thread_t::run() {
 	set_affinity(get_thd_id());
 #endif
 
-	// if (warmup_finish) {
+	 if (warmup_finish) {
 		mem_allocator.register_thread(get_thd_id());
-	// }
+	 }
 
 	pthread_barrier_wait( &start_bar );
 
@@ -171,6 +171,7 @@ RC thread_t::run() {
 #endif
 		if (rc == RCOK)
 		{
+//		    printf("RCOK . \n");
 		    //RCU_ALLOC=false
 //#if RCU_ALLOC || INDEX_STRUCT != IDX_MICA
 //		  scoped_rcu_region guard;
@@ -266,13 +267,13 @@ RC thread_t::run() {
 			stats.commit(get_thd_id());
 			txn_cnt ++;
 
-#if CC_ALG != MICA
-      ts_t now = get_server_clock();
-      if (last_commit_time != 0)
-        inter_commit_latency.update((now - last_commit_time) / 1000);
-      // printf("%" PRIu64 "\n", (now - last_commit_time) / 1000);
-      last_commit_time = now;
-#endif
+            #if CC_ALG != MICA
+                  ts_t now = get_server_clock();
+                  if (last_commit_time != 0)
+                    inter_commit_latency.update((now - last_commit_time) / 1000);
+                  // printf("%" PRIu64 "\n", (now - last_commit_time) / 1000);
+                  last_commit_time = now;
+            #endif
 		} else if (rc == Abort) {
 			// INC_STATS(get_thd_id(), time_abort, timespan);
 			INC_STATS(get_thd_id(), abort_cnt, 1);
@@ -285,7 +286,7 @@ RC thread_t::run() {
     	_wl->mica_db->deactivate(static_cast<uint16_t>(get_thd_id()));
 #endif
 			return rc;
-    }
+        }
 		// if (!warmup_finish && txn_cnt >= WARMUP / g_thread_cnt)
 		if (!warmup_finish && (txn_cnt >= WARMUP || static_cast<int64_t>(exp_endtime - get_server_clock()) <= 0))
 		{

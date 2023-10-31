@@ -1,5 +1,6 @@
-#pragma once 
+#pragma once
 
+#include <atomic>
 #include "global.h"
 #include "helper.h"
 
@@ -26,6 +27,7 @@ public:
 	void init(workload * h_wl, int thread_id);
 	base_query * get_next_query(); 
 	int q_idx;
+
 #if WORKLOAD == YCSB
 	ycsb_query * queries;
 #elif WORKLOAD == TPCC

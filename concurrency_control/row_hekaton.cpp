@@ -10,8 +10,7 @@
 #if CC_ALG == HEKATON
 
 void Row_hekaton::init(row_t * row) {
-	_his_len = 30;
-
+	_his_len = 40;
 
     tuple_size = row->get_table()->get_schema()->get_tuple_size();
 
@@ -125,6 +124,11 @@ RC Row_hekaton::access(txn_man * txn, TsType type, row_t * row) {
 			row_t * res_row = _write_history[id].row;
 			assert(res_row);
 			res_row->copy(_write_history[_his_latest].row);
+			res_row->manager = _write_history[pre_id].row->manager;
+            res_row->_primary_key = _write_history[pre_id].row->_primary_key;
+            res_row->is_deleted = _write_history[pre_id].row->is_deleted;
+            res_row->table = _write_history[pre_id].row->table;
+            res_row->_row_id = _write_history[pre_id].row->_row_id;
 
 			txn->cur_row = res_row;
 #endif
@@ -173,7 +177,7 @@ uint32_t Row_hekaton::reserveRow(txn_man * txn)
     }
 
     // some entries are not taken. But the row of that entry is NULL.
-    if (!_write_history[idx].row) {
+//    if (!_write_history[idx].row) {
 #if  AGGRESSIVE_INLINING
         _write_history[idx].row = (row_t *) mem_allocator.alloc((sizeof(row_t) + tuple_size), -1);
         _write_history[idx].row->init(tuple_size);
@@ -181,7 +185,7 @@ uint32_t Row_hekaton::reserveRow(txn_man * txn)
         _write_history[idx].row = (row_t *) mem_allocator.alloc((sizeof(row_t)), -1);
         _write_history[idx].row->init(tuple_size);
 #endif
-    }
+//    }
     return idx;
 }
 
@@ -227,11 +231,8 @@ RC Row_hekaton::prepare_read(txn_man * txn, row_t * row, ts_t commit_ts)
 			rc = Abort;
 			break;
 		}
-//#if AGGRESSIVE_INLINING
-//        idx = (idx == 0)? _latest_index - 1 : idx - 1;
-//#else
+
 		idx = (idx == 0)? _his_len - 1 : idx - 1;
-//#endif
 	}
 	blatch = false;
 	return rc;
@@ -244,8 +245,24 @@ void Row_hekaton::post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row
 		PAUSE
 
 #if AGGRESSIVE_INLINING
-    WriteHisEntry * entry = &_write_history[ (_his_latest + 1) % _his_len ];
+#if BUFFERING
+    row->is_updated = false;
+//    _exists_prewrite = false;
+//	assert(row->end_txn && row->begin == txn->get_txn_id());
+//    if (rc == RCOK) {
+//        row->next_row->end_txn = false;
+//        row->next_row->end = commit_ts;
+//        row->begin = commit_ts;
+//        row->end = INF;
+//        row->end_txn = false;
+//    } else {
+//        row->begin = INF;
+//        row->end_txn = false;
+////        printf("abort. \n");
+//    }
+#endif
     _exists_prewrite = false;
+    WriteHisEntry * entry = &_write_history[ (_his_latest + 1) % _his_len ];
     assert(row->end_txn && entry->end == txn->get_txn_id());
     if (rc == RCOK) {
         assert(commit_ts > entry->begin);
@@ -260,6 +277,7 @@ void Row_hekaton::post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row
     } else {
         row->end_txn = false;
         row->end = INF;
+//        printf("abort. \n");
     }
 #else
     WriteHisEntry * entry = &_write_history[ (_his_latest + 1) % _his_len ];
@@ -271,6 +289,7 @@ void Row_hekaton::post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row
 		_write_history[ _his_latest ].end = commit_ts;
 		entry->begin = commit_ts;
 		entry->end = INF;
+
 		 _his_latest = (_his_latest + 1) % _his_len;
 		assert(_his_latest != _his_oldest);
 	} else {
@@ -281,15 +300,13 @@ void Row_hekaton::post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row
 	blatch = false;
 }
 
-void
-Row_hekaton::lock()
+void Row_hekaton::lock()
 {
   while (!ATOM_CAS(blatch, false, true))
 		PAUSE
 }
 
-void
-Row_hekaton::release()
+void Row_hekaton::release()
 {
   assert(blatch);
   blatch = false;

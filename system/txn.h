@@ -16,7 +16,8 @@ class INDEX;
 class ARRAY_INDEX;
 class ORDERED_INDEX;
 class HASH_INDEX;
-class IndexMBTree;
+//class IndexMBTree;
+//class IndexBtree;
 
 // each thread has a txn_man.
 // a txn_man corresponds to a single transaction.
@@ -29,6 +30,9 @@ public:
 #if CC_ALG != MICA
 	access_t 	type;
 	row_t * 	orig_row;
+    ORDERED_INDEX* idx;
+    uint64_t    pky_key;
+    itemid_t *  idx_location;
 #endif
 	row_t * 	data;
 #if CC_ALG != MICA
@@ -81,8 +85,8 @@ public:
 
 //    template <typename Func>
 //	RC 				finish(RC rc,  const Func& func);
-    template <typename Func>
-    RC finish(RC rc, const Func& func) {
+template <typename Func>
+RC finish(RC rc, const Func& func) {
 #if CC_ALG == HSTORE
         rc = apply_index_changes(rc);
 	return rc;
@@ -130,7 +134,7 @@ public:
         // INC_TMP_STATS(get_thd_id(), time_man,  timespan);
         // INC_STATS(get_thd_id(), time_cleanup,  timespan);
         return rc;
-    }
+}
 
 	void 			cleanup(RC rc);
 #if CC_ALG == TICTOC
@@ -165,17 +169,20 @@ public:
 	RC index_read_multiple(IndexT* index, idx_key_t key, void** rows, size_t& count, int part_id);
 #else
     template <typename IndexT>
-    RC index_read(IndexT* index, idx_key_t key, row_t** row, int part_id);
+    RC index_read(IndexT* index, idx_key_t key, void*& row, itemid_t*& idx_location, access_t type, int part_id);
     template <typename IndexT>
-    RC index_read_multiple(IndexT* index, idx_key_t key, row_t** rows, size_t& count, int part_id);
+    RC index_read_buffer(IndexT* index, idx_key_t key, void*& row, access_t type, int part_id);
+    template <typename IndexT>
+    bool index_read_buffer_again(IndexT* index, idx_key_t key, void*& row, access_t type, int part_id);
+    template <typename IndexT>
+    RC index_read_multiple(IndexT* index, idx_key_t key, void** rows, size_t& count, int part_id);
 #endif
 
+	template <typename IndexT>
+	RC index_read_range(IndexT* index, idx_key_t min_key, idx_key_t max_key, void** rows, size_t& count, int part_id);
 
 	template <typename IndexT>
-	RC index_read_range(IndexT* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
-
-	template <typename IndexT>
-	RC index_read_range_rev(IndexT* index, idx_key_t min_key, idx_key_t max_key, row_t** rows, size_t& count, int part_id);
+	RC index_read_range_rev(IndexT* index, idx_key_t min_key, idx_key_t max_key, void** rows, size_t& count, int part_id);
 
 	// get_row methods
 #if CC_ALG == MICA
@@ -189,7 +196,7 @@ public:
 #else
 #if !TPCC_CF
     template <typename IndexT>
-    row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type );
+    row_t* get_row(IndexT* index, row_t* row, itemid_t *idx_location, int part_id, access_t type );
 #else
     template <typename IndexT>
 	row_t* get_row(IndexT* index, row_t* row, int part_id, access_t type, const access_t* cf_access_type = NULL);
@@ -206,7 +213,7 @@ public:
 #endif
 
 	// insert_row/remove_row
-  bool insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& row_id);
+  bool insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& row_id, uint64_t inst_key);
   bool remove_row(row_t* row);
 
 	// index_insert/index_remove
@@ -216,6 +223,7 @@ public:
   bool remove_idx(IndexT* idx, uint64_t key, row_t* row, int part_id);
 
 	RC apply_index_changes(RC rc);
+    RC read_index_again( int rid);
 
 private:
 	// insert/remove rows
@@ -226,13 +234,15 @@ private:
 
 	// insert/remove indexes
 	uint64_t 		   insert_idx_cnt;
-    HASH_INDEX*    insert_idx_idx[MAX_ROW_PER_TXN];
+//    HASH_INDEX*    insert_idx_idx[MAX_ROW_PER_TXN];
+    ORDERED_INDEX*   insert_idx_idx[MAX_ROW_PER_TXN];
 	idx_key_t	     insert_idx_key[MAX_ROW_PER_TXN];
 	row_t* 		     insert_idx_row[MAX_ROW_PER_TXN];
-	int	       	   insert_idx_part_id[MAX_ROW_PER_TXN];
+	int	       	     insert_idx_part_id[MAX_ROW_PER_TXN];
 
 	uint64_t 		   remove_idx_cnt;
-    HASH_INDEX*   remove_idx_idx[MAX_ROW_PER_TXN];
+//    HASH_INDEX*   remove_idx_idx[MAX_ROW_PER_TXN];
+    ORDERED_INDEX*   remove_idx_idx[MAX_ROW_PER_TXN];
 	idx_key_t	     remove_idx_key[MAX_ROW_PER_TXN];
 	int	      	   remove_idx_part_id[MAX_ROW_PER_TXN];
 
@@ -269,7 +279,7 @@ private:
         INC_STATS(get_thd_id(), debug1, get_sys_clock() - starttime);
         ts_t commit_ts = glob_manager->get_ts(get_thd_id());
         // validate the read set.
-#if ISOLATION_LEVEL == SERIALIZABLE
+     #if ISOLATION_LEVEL == SERIALIZABLE
         if (rc == RCOK)
         {
             for (int rid = 0; rid < row_cnt; rid ++)
@@ -277,11 +287,11 @@ private:
                 if (accesses[rid]->type == WR) {
                     continue;
                 }
-#if AGGRESSIVE_INLINING
+           #if AGGRESSIVE_INLINING
                 if (accesses[rid]->orig_row != accesses[rid]->data){
                     continue;
                 }
-#endif
+          #endif
                 rc = accesses[rid]->orig_row->manager->prepare_read(this,
                                                                     accesses[rid]->data,
                                                                     commit_ts);
@@ -290,30 +300,56 @@ private:
                 }
             }
         }
-#endif
+       #endif
 
-#if AGGRESSIVE_INLINING == false
+     #if AGGRESSIVE_INLINING == false
         rc = apply_index_changes(rc);
-#endif
 
-        // postprocess
+        // postprocess, for inserts
         if (rc == RCOK) {
             for (UInt32 i = 0; i < insert_cnt; i++) {
                 row_t * row = insert_rows[i];
                 row->manager->set_ts(commit_ts);
             }
         }
+     #endif
+
+        //for updates
         for (int rid = 0; rid < row_cnt; rid ++) {
-            if (accesses[rid]->type == RD){
+            if (accesses[rid]->type == RD ){
                 continue;
             }
+
+        #if AGGRESSIVE_INLINING
+            rc = read_index_again(rid);
+            if (accesses[rid]->type == INS){
+                row_t * row = accesses[rid]->data;
+                row->manager->set_ts(commit_ts);
+                continue;
+            }
+        #endif
+
             accesses[rid]->orig_row->manager->post_process(this, commit_ts, rc, accesses[rid]->data);
-#if AGGRESSIVE_INLINING
+
+        #if AGGRESSIVE_INLINING == false
+            //apply index pointing to the latest
+            if (rc == RCOK){
+                auto newst_row = accesses[rid]->data;
+                auto idx_location = accesses[rid]->idx_location;
+                auto idx_location_row = idx_location->location;
+                auto ret = ATOM_CAS(idx_location->location, idx_location_row, reinterpret_cast<void *>(newst_row));
+                assert(ret);
+            }
+        #endif
+
+        #if AGGRESSIVE_INLINING
             if (rc == RCOK){
                 func(accesses[rid]->data->get_data());
             }
-#endif
+        #endif
         }
+
+//        printf(" verify rc:%u. \n", rc);
         return rc;
     }
 #endif

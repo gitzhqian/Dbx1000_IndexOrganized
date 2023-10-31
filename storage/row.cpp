@@ -30,13 +30,15 @@ size_t row_t::max_alloc_size() { return sizeof(row_t); }
 #endif
 
 RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_t row_id) {
+    _primary_key = idx_key;
 	_row_id = row_id;
 	_part_id = part_id;
 	this->table = host_table;
 	is_deleted = 0;
 #if AGGRESSIVE_INLINING
+	is_updated = 0;
 	this->next_row = nullptr;
-	this->successor = nullptr;
+//	this->successor = nullptr;
     this->begin_txn = false;
     this->end_txn = false;
     this->begin = 0;
@@ -115,14 +117,17 @@ void row_t::init(int size)
 #if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
 	// We can just use &data[0].
 #else
-#if AGGRESSIVE_INLINING == false
+#if AGGRESSIVE_INLINING
+    is_updated = 0;
+    is_deleted = 0;
+#else
 	data = (char *) mem_allocator.alloc(size, 64);
+	is_deleted = 0;
 #endif
 #endif
 #else
 	assert(false);
 #endif
-  is_deleted = 0;
 }
 
 RC
@@ -198,7 +203,7 @@ void row_t::set_value(int id, void * ptr) {
 #else
 	int datasize = get_schema()->get_field_size(id);
 	int pos = get_schema()->get_field_index(id);
-        int cf_id = get_schema()->get_field_cf_id(id);
+    int cf_id = get_schema()->get_field_cf_id(id);
 	memcpy( &cf_data[cf_id][pos], ptr, datasize);
 #endif
 }
@@ -392,10 +397,10 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row, row_t *& org_row) 
 	TsType ts_type = (type == RD)? R_REQ : P_REQ;
 #if AGGRESSIVE_INLINING
     if (ts_type == R_REQ) {
-        if (txn->get_ts() > row->begin){
+        if (txn->get_ts() > row->begin) {
             txn->cur_row = row; // read row
             rc = RCOK;
-        }else{
+        } else {
             rc = this->manager->access(txn, ts_type, row);
             row = txn->cur_row; // read row
         }
@@ -403,11 +408,6 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row, row_t *& org_row) 
         rc = this->manager->access(txn, ts_type, row);
         org_row = txn->cur_row;
         txn->cur_row = row; // write row
-    }
-
-    if (rc != Abort) {
-        row->table = get_table();
-        assert(row->get_schema() == this->get_schema());
     }
 #else
 	rc = this->manager->access(txn, ts_type, row);
@@ -421,11 +421,12 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row, row_t *& org_row) 
 		INC_TMP_STATS(thd_id, time_wait, t2 - t1);
 		row = txn->cur_row;
 	}
-	if (rc != Abort) {
-		row->table = get_table();
-		assert(row->get_schema() == this->get_schema());
-	}
 #endif
+    if (rc != Abort) {
+        row->table = get_table();
+        assert(row->get_schema() == this->get_schema());
+    }
+
 	return rc;
 #elif CC_ALG == OCC
 	// OCC always make a local copy regardless of read or write

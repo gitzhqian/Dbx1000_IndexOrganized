@@ -153,12 +153,15 @@ int main(int argc, char* argv[]) {
   uint64_t thd_cnt = g_thread_cnt;
   pthread_t p_thds[thd_cnt - 1];
   m_thds = new thread_t*[thd_cnt];
-  for (uint32_t i = 0; i < thd_cnt; i++)
-    m_thds[i] = (thread_t*)mem_allocator.alloc(sizeof(thread_t), 0);
+  for (uint32_t i = 0; i < thd_cnt; i++){
+      m_thds[i] = (thread_t*)mem_allocator.alloc(sizeof(thread_t), 0);
+  }
   // query_queue should be the last one to be initialized!!!
   // because it collects txn latency
   query_queue = (Query_queue*)mem_allocator.alloc(sizeof(Query_queue), 0);
-  if (WORKLOAD != TEST) query_queue->init(m_wl);
+  if (WORKLOAD != TEST) {
+      query_queue->init(m_wl);
+  }
   pthread_barrier_init(&warmup_bar, NULL, g_thread_cnt);
   printf("query_queue initialized!\n");
 #if CC_ALG == HSTORE
@@ -174,7 +177,9 @@ int main(int argc, char* argv[]) {
 
   pthread_barrier_init(&start_bar, NULL, g_thread_cnt + 1);
 
-  for (uint32_t i = 0; i < thd_cnt; i++) m_thds[i]->init(i, m_wl);
+  for (uint32_t i = 0; i < thd_cnt; i++) {
+      m_thds[i]->init(i, m_wl);
+  }
 
 #if CC_ALG == MICA
   m_wl->mica_db->reset_stats();
@@ -213,8 +218,9 @@ int main(int argc, char* argv[]) {
 #if CC_ALG == MICA
   m_wl->mica_db->reset_stats();
 #else
-  for (uint32_t i = 0; i < thd_cnt; i++)
-    m_thds[i]->inter_commit_latency.reset();
+  for (uint32_t i = 0; i < thd_cnt; i++){
+      m_thds[i]->inter_commit_latency.reset();
+  }
 #endif
 
   // spawn and run txns again.
@@ -244,7 +250,9 @@ int main(int argc, char* argv[]) {
   }
   pthread_barrier_wait(&start_bar);
   int64_t starttime = get_server_clock();
-  for (uint32_t i = 0; i < thd_cnt; i++) pthread_join(p_thds[i], NULL);
+  for (uint32_t i = 0; i < thd_cnt; i++){
+      pthread_join(p_thds[i], NULL);
+  }
   int64_t endtime = get_server_clock();
 
   if (WORKLOAD != TEST) {
@@ -281,8 +289,9 @@ int main(int argc, char* argv[]) {
                                 ->inter_commit_latency();
 #else
   ::mica::util::Latency inter_commit_latency;
-  for (uint32_t i = 0; i < thd_cnt; i++)
-    inter_commit_latency += m_thds[i]->inter_commit_latency;
+  for (uint32_t i = 0; i < thd_cnt; i++){
+      inter_commit_latency += m_thds[i]->inter_commit_latency;
+  }
 
   // printf("sum: %" PRIu64 " (us)\n", inter_commit_latency.sum());
   printf("inter-commit latency (us): min=%" PRIu64 ", max=%" PRIu64

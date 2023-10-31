@@ -61,25 +61,45 @@ RC table_t::get_new_row(row_t*& row) {
 }
 
 // the row is not stored locally. the pointer must be maintained by index structure.
-RC table_t::get_new_row( row_t*& row, uint64_t part_id, uint64_t& row_id, uint64_t idx_key) {
+RC table_t::get_new_row(row_t*& row, uint64_t part_id, uint64_t& row_id, uint64_t idx_key) {
   RC rc = RCOK;
-
 // XXX: this has a race condition; should be used just for non-critical purposes
 // cur_tab_size++;
-
 #if CC_ALG == MICA
   assert(row != NULL);
 // We do not need a new row instance because MICA has it.
 #else
  #if AGGRESSIVE_INLINING
-      this->table_index->index_allocate(idx_key, row, part_id);
+//      this->table_index->index_allocate(idx_key, row, part_id);
+     uint32_t payload_size = sizeof(row_t); //80
+     payload_size = payload_size + this->get_schema()->get_tuple_size(); // ycsb-1000
+     this->table_index->index_insert(NULL, idx_key, row, payload_size);
  #else
-      row = (row_t*)mem_allocator.alloc(row_t::alloc_size(this), part_id);
+     row = (row_t*)mem_allocator.alloc(row_t::alloc_size(this), part_id);
  #endif
 #endif
 
-  rc = row->init(idx_key, this, part_id, row_id);
-  row->init_manager(row);
+      rc = row->init(idx_key, this, part_id, row_id);
+      row->init_manager(row);
 
-  return rc;
+      return rc;
+}
+RC table_t::get_new_row_wl(row_t*& row, uint64_t part_id, uint64_t& row_id, uint64_t idx_key) {
+    RC rc = RCOK;
+    uint32_t payload_size = sizeof(row_t); //80
+    payload_size = payload_size + this->get_schema()->get_tuple_size(); // ycsb-1000
+#if BUFFERING
+    row = (row_t*)mem_allocator.alloc(row_t::alloc_size(this), part_id);
+    this->table_index->index_insert_buffer(NULL, idx_key, row, payload_size);
+#else
+    //      this->table_index->index_allocate(idx_key, row, part_id);
+    rc = this->table_index->index_insert(NULL, idx_key, row, payload_size);
+#endif
+
+    if (rc == RCOK){
+        rc = row->init(idx_key, this, part_id, row_id);
+        row->init_manager(row);
+    }
+
+    return rc;
 }
