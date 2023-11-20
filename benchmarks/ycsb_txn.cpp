@@ -8,6 +8,9 @@
 #include "storage/row.h"
 #include "index_hash.h"
 #include "index_btree.h"
+#include "index_mica.h"
+#include "cbtree_index.h"
+#include "btree_store.h"
 #include "catalog.h"
 #include "manager.h"
 #include "row_lock.h"
@@ -46,6 +49,10 @@ RC ycsb_txn_man::run_txn(base_query* query) {
     while (!finish_req) {
       access_t type = req->rtype;
       row_t* row = nullptr;
+      #if CC_ALG == MICA
+            row_t row_container;
+            row = &row_container;
+      #endif
       if (type == RD ||  type == WR){
          row = search(_wl->the_index, req->key, part_id, type);
       } else if(type == INS){
@@ -53,22 +60,24 @@ RC ycsb_txn_man::run_txn(base_query* query) {
           uint64_t key_inst = req->key;
           auto ret = insert_row(table_, row, part_id, out_row_id, key_inst);
 #if AGGRESSIVE_INLINING == false
-          ret = insert_idx(_wl->the_index, (uint64_t)req->key, row, part_id);
+          ret = insert_idx(_wl->the_index, key_inst, row, part_id);
 #endif
           if (!ret){
               rc = Abort;
               goto final;
           }
+#if CC_ALG != MICA
           for (UInt32 fid = 0; fid < schema_->get_field_cnt(); fid++) {
               char value[6] = "hello";
               row->set_value(fid, value);
           }
+#endif
       }
 
       if (row == NULL) {
 //        printf("null, abort. \n");
-        rc = Abort;
-        goto final;
+          rc = Abort;
+          goto final;
       }
 
       // Computation //
@@ -86,7 +95,7 @@ RC ycsb_txn_man::run_txn(base_query* query) {
 #endif
           for (uint64_t j = 0; j < kColumnSize; j += 64)
             v += static_cast<uint64_t>(data[j]);
-          v += static_cast<uint64_t>(data[kColumnSize - 1]);
+            v += static_cast<uint64_t>(data[kColumnSize - 1]);
           //                  }
         } else if(req->rtype == WR) {
           assert(req->rtype == WR);

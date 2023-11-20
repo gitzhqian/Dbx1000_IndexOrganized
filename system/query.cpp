@@ -83,7 +83,8 @@ void Query_thd::init(workload * h_wl, int thread_id) {
 	srand48_r(thread_id + 1, &buffer);
 
     //generate insert keys
-    size_t thread_insert_keys = g_synth_table_size;
+//    size_t thread_insert_keys = g_synth_table_size;
+    size_t thread_insert_keys = MAX_TXN_PER_PART + ABORT_BUFFER_SIZE * 2;
     std::vector<uint64_t> random_insert_keys;
     if (g_insert_perc >0) {
         uint64_t table_size_ = g_synth_table_size / g_virtual_part_cnt;
@@ -106,10 +107,11 @@ void Query_thd::init(workload * h_wl, int thread_id) {
 	assert(false);
 #endif
 
-	for (UInt32 qid = 0; qid < request_cnt; qid ++) {
+	for (uint64_t qid = 0; qid < request_cnt; qid ++) {
 #if WORKLOAD == YCSB
 		new(&queries[qid]) ycsb_query();
-		queries[qid].init(thread_id, h_wl, this, random_insert_keys, idx_inst);
+        queries[qid].init(thread_id, h_wl, this, random_insert_keys, qid);
+//		queries[qid].init(thread_id, h_wl, this, random_insert_keys, idx_inst);
 #elif WORKLOAD == TPCC
 		new(&queries[qid]) tpcc_query();
 		queries[qid].init(thread_id, h_wl);

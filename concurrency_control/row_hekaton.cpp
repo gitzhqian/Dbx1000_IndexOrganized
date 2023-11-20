@@ -263,7 +263,13 @@ void Row_hekaton::post_process(txn_man * txn, ts_t commit_ts, RC rc, row_t * row
 #endif
     _exists_prewrite = false;
     WriteHisEntry * entry = &_write_history[ (_his_latest + 1) % _his_len ];
-    assert(row->end_txn && entry->end == txn->get_txn_id());
+    if (!row->end_txn || entry->end != txn->get_txn_id()){
+        printf("end_txn:%d, entry.end:%lu, txn.txn_id:%lu. \n", row->end_txn, entry->end, txn->get_txn_id());
+        row->end_txn = false;
+        row->end = INF;
+        rc=Abort;
+    }
+//    assert(row->end_txn && entry->end == txn->get_txn_id());
     if (rc == RCOK) {
         assert(commit_ts > entry->begin);
         entry->end_txn = false;

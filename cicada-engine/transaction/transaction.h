@@ -73,10 +73,10 @@ class Transaction {
   void prefetch_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
                     uint64_t off, uint64_t len);
   bool peek_row(RAH& rah, Table<StaticConfig>* tbl, uint16_t cf_id,
-                uint64_t row_id, void *row_head, bool check_dup_access, bool read_hint,
-                bool write_hint);
+                uint64_t row_id, uint64_t primary_key,  void *row_head, bool check_dup_access,
+                bool read_hint, bool write_hint);
   bool peek_row(RAHPO& rah, Table<StaticConfig>* tbl, uint16_t cf_id,
-                uint64_t row_id,void *row_head,  bool check_dup_access);
+                uint64_t row_id, uint64_t primary_key, void *row_head,  bool check_dup_access);
   template <class DataCopier>
   bool read_row(RAH& rah, const DataCopier& data_copier);
   template <class DataCopier>

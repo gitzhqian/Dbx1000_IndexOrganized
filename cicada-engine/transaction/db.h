@@ -13,6 +13,7 @@
 #include "transaction.h"
 #include "hash_index.h"
 #include "btree_index.h"
+#include "cbtree_index.h"
 #include "logging.h"
 //#include "../util/lcore.h"
 #include "stats_mica.h"
@@ -149,9 +150,8 @@ struct BasicDBConfig {
   typedef ::mica::transaction::CompactConcurrentTimestamp ConcurrentTimestamp;
   // typedef ::mica::transaction::WideTimestamp Timestamp;
   // typedef ::mica::transaction::WideConcurrentTimestamp ConcurrentTimestamp;
-  // typedef ::mica::transaction::CentralizedTimestamp Timestamp;
-  // typedef ::mica::transaction::CentralizedConcurrentTimestamp
-  // ConcurrentTimestamp;
+//   typedef ::mica::transaction::CentralizedTimestamp Timestamp;
+//   typedef ::mica::transaction::CentralizedConcurrentTimestamp ConcurrentTimestamp;
 
   // The low-level memory allocator for PagePool.
   typedef ::mica::alloc::HugeTLBFS_SHM Alloc;
@@ -176,8 +176,9 @@ class DB {
   typedef HashIndex<StaticConfig, true, uint64_t> HashIndexUniqueU64;
   typedef HashIndex<StaticConfig, false, uint64_t> HashIndexNonuniqueU64;
   typedef BTreeIndex<StaticConfig, true, uint64_t> BTreeIndexUniqueU64;
-  typedef BTreeIndex<StaticConfig, false, std::pair<uint64_t, uint64_t>>
-      BTreeIndexNonuniqueU64;
+  typedef BTreeIndex<StaticConfig, false, std::pair<uint64_t, uint64_t>> BTreeIndexNonuniqueU64;
+  typedef CBtreeIndex<StaticConfig> CBtreeIndexUniqueU64;
+  typedef CBtreeIndex<StaticConfig> CBtreeIndexNonuniqueU64;
 
   DB(PagePool<StaticConfig>** page_pools, Logger* logger, Stopwatch* sw,
      uint16_t num_threads);
@@ -266,8 +267,7 @@ class DB {
     return hash_idxs_nonunique_u64_[name];
   }
 
-  bool create_btree_index_unique_u64(std::string name,
-                                     Table<StaticConfig>* main_tbl);
+  bool create_btree_index_unique_u64(std::string name, Table<StaticConfig>* main_tbl);
 
   BTreeIndexUniqueU64 *get_btree_index_unique_u64(std::string name) {
     return btree_idxs_unique_u64_[name];
@@ -276,8 +276,25 @@ class DB {
     return btree_idxs_unique_u64_[name];
   }
 
-  bool create_btree_index_nonunique_u64(std::string name,
-                                        Table<StaticConfig>* main_tbl);
+    bool create_cbtree_index_unique_u64(std::string name, Table<StaticConfig>* main_tbl);
+
+    CBtreeIndexUniqueU64 *get_cbtree_index_unique_u64(std::string name) {
+        return cbtree_idxs_unique_u64_[name];
+    }
+    CBtreeIndexUniqueU64 *get_cbtree_index_unique_u64(std::string name) const {
+        return cbtree_idxs_unique_u64_[name];
+    }
+
+    bool create_cbtree_index_nonunique_u64(std::string name, Table<StaticConfig>* main_tbl);
+
+    CBtreeIndexNonuniqueU64 *get_cbtree_index_nonunique_u64(std::string name) {
+        return cbtree_idxs_nonunique_u64_[name];
+    }
+    CBtreeIndexNonuniqueU64 *get_cbtree_index_nonunique_u64(std::string name) const {
+        return cbtree_idxs_nonunique_u64_[name];
+    }
+
+  bool create_btree_index_nonunique_u64(std::string name, Table<StaticConfig>* main_tbl);
 
   BTreeIndexNonuniqueU64 *get_btree_index_nonunique_u64(std::string name) {
     return btree_idxs_nonunique_u64_[name];
@@ -315,10 +332,8 @@ class DB {
   uint8_t num_numa_;
   Context<StaticConfig>* ctxs_[StaticConfig::kMaxLCoreCount];
 
-  SharedRowVersionPool<StaticConfig>*
-      shared_row_version_pools_[StaticConfig::kMaxNUMACount];
-  RowVersionPool<StaticConfig>*
-      row_version_pools_[StaticConfig::kMaxLCoreCount];
+  SharedRowVersionPool<StaticConfig>* shared_row_version_pools_[StaticConfig::kMaxNUMACount];
+  RowVersionPool<StaticConfig>* row_version_pools_[StaticConfig::kMaxLCoreCount];
 
   std::unordered_map<std::string, Table<StaticConfig>*> tables_;
 
@@ -327,6 +342,9 @@ class DB {
 
   std::unordered_map<std::string, BTreeIndexUniqueU64*> btree_idxs_unique_u64_;
   std::unordered_map<std::string, BTreeIndexNonuniqueU64*> btree_idxs_nonunique_u64_;
+
+    std::unordered_map<std::string, CBtreeIndexUniqueU64*> cbtree_idxs_unique_u64_;
+    std::unordered_map<std::string, CBtreeIndexNonuniqueU64*> cbtree_idxs_nonunique_u64_;
 
   // Modified by leader/worker threads very infrequently.
   volatile uint16_t leader_thread_id_;
@@ -358,6 +376,7 @@ class DB {
   ThreadState thread_states_[StaticConfig::kMaxLCoreCount];
 
 } __attribute__((aligned(64)));
+
 }
 }
 

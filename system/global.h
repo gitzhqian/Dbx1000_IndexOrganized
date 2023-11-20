@@ -100,9 +100,11 @@ typedef ::mica::transaction::PagePool<DBConfig> MICAPagePool;
 typedef ::mica::transaction::DB<DBConfig> MICADB;
 typedef ::mica::transaction::Table<DBConfig> MICATable;
 //typedef MICADB::HashIndexUniqueU64 MICAIndex;
-typedef MICADB::HashIndexNonuniqueU64 MICAIndex;
+//typedef MICADB::HashIndexNonuniqueU64 MICAIndex;
 // typedef MICADB::BTreeIndexNonuniqueU64 MICAOrderedIndex;
-typedef MICADB::BTreeIndexUniqueU64 MICAOrderedIndex;
+//typedef MICADB::BTreeIndexUniqueU64 MICAOrderedIndex;
+typedef MICADB::CBtreeIndexUniqueU64 MICACBtreeIndex;
+//typedef MICADB::BTreeIndexNonuniqueU64 MICACBtreeIndex;
 typedef ::mica::transaction::RowVersion<DBConfig> MICARowVersion;
 typedef ::mica::transaction::RowAccessHandle<DBConfig> MICARowAccessHandle;
 typedef ::mica::transaction::RowAccessHandlePeekOnly<DBConfig> MICARowAccessHandlePeekOnly;
@@ -205,7 +207,7 @@ extern uint64_t g_max_orderline;
 // TATP
 extern uint64_t g_sub_size;
 
-enum RC { RCOK, Commit, Abort, WAIT, ERROR, FINISH};
+//enum RC { RCOK, Commit, Abort, WAIT, ERROR, FINISH};
 
 /* Thread */
 typedef uint64_t txnid_t;
@@ -227,7 +229,7 @@ typedef uint64_t idx_key_t; // key id for index
 typedef uint64_t (*func_ptr)(idx_key_t);	// part_id func_ptr(index_key);
 
 /* general concurrency control */
-enum access_t {RD, WR, XP, SCAN, PEEK, SKIP, INS};
+//enum access_t {RD, WR, XP, SCAN, PEEK, SKIP, INS};
 /* LOCK */
 enum lock_t {LOCK_EX, LOCK_SH, LOCK_NONE };
 /* TIMESTAMP */
@@ -243,14 +245,13 @@ enum TsType {R_REQ, W_REQ, P_REQ, XP_REQ};
 #if (INDEX_STRUCT == IDX_MICA)
 
 #define HASH_INDEX		IndexMICA
-// #define HASH_INDEX		OrderedIndexMICA
 #define ARRAY_INDEX		IndexArray
-#if !SIMPLE_INDEX_UPDATE
+//#if !SIMPLE_INDEX_UPDATE
 #define ORDERED_INDEX		OrderedIndexMICA
-#else
-#define ORDERED_INDEX		IndexMICAMBTree
-#define IDX_MICA_USE_MBTREE
-#endif
+//#else
+//#define ORDERED_INDEX		IndexMICAMBTree
+//#define IDX_MICA_USE_MBTREE
+//#endif
 
 #else  // IDX_HASH
 #define ORDERED_INDEX	IndexBtree

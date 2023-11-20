@@ -84,9 +84,17 @@ class Table {
   }
   std::vector<HashIndex<StaticConfig, false, uint64_t>*> idx_hashs{};
 
+  void add_idx_cbtree(CBtreeIndex<StaticConfig> *idx_){
+      idx_cbtree = idx_;
+  }
+  CBtreeIndex<StaticConfig> *get_idx_cbtree(){
+      return idx_cbtree;
+  }
+
  private:
   DB<StaticConfig>* db_;
   uint16_t cf_count_;
+  CBtreeIndex<StaticConfig> *idx_cbtree;
 
   struct ColumnFamilyInfo {
     uint64_t data_size_hint;

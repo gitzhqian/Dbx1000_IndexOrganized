@@ -131,6 +131,34 @@ bool DB<StaticConfig>::create_hash_index_nonunique_u64(
 
   return true;
 }
+    template <class StaticConfig>
+    bool DB<StaticConfig>::create_cbtree_index_unique_u64(std::string name,
+                                                          Table<StaticConfig>* main_tbl) {
+        if (cbtree_idxs_unique_u64_.find(name) != cbtree_idxs_unique_u64_.end())
+            return false;
+
+//        const uint64_t kDataSizes[] = {CBtreeIndexUniqueU64::kDataSize};
+        uint64_t kDataSizes = 16;
+        auto idx = new CBtreeIndexUniqueU64(this, main_tbl,
+                                            new Table<StaticConfig>(this, 1, &kDataSizes));
+        main_tbl->add_idx_cbtree(idx);
+        cbtree_idxs_unique_u64_[name] = idx;
+        return true;
+    }
+
+    template <class StaticConfig>
+    bool DB<StaticConfig>::create_cbtree_index_nonunique_u64(std::string name,
+                                                          Table<StaticConfig>* main_tbl) {
+        if (cbtree_idxs_nonunique_u64_.find(name) != cbtree_idxs_nonunique_u64_.end())
+            return false;
+
+//        const uint64_t kDataSizes[] = {CBtreeIndexUniqueU64::kDataSize};
+        uint64_t kDataSizes = 16;
+        auto idx = new CBtreeIndexNonuniqueU64(this, main_tbl,
+                                            new Table<StaticConfig>(this, 1, &kDataSizes));
+        cbtree_idxs_nonunique_u64_[name] = idx;
+        return true;
+    }
 
 template <class StaticConfig>
 bool DB<StaticConfig>::create_btree_index_unique_u64(

@@ -4,11 +4,6 @@
 #ifndef _BTREE_STORE_H_
 #define _BTREE_STORE_H_
 
-
-//#define TBB_PREVIEW_CONCURRENT_ORDERED_CONTAINERS 1
-//#include "tbb/concurrent_map.h"
-
-#include "valen_buffer.h"
 #include "index_base.h"
 #include "row.h"
 #include "table.h"
@@ -17,10 +12,7 @@
 #include "helper.h"
 #include "mem_alloc.h"
 #include "hopscotch_set.h"
-#include "tbb/concurrent_vector.h"
-//#include "googlebtree_map.h"
-//#include "hopscotch_map.h"
-//#include "cuckoohash_map.hh"
+#include "row_meta.h"
 #include <stack>
 
 /**
@@ -76,9 +68,6 @@ node size:
  * ptr1 and ptr2, a row_t size = 88bytes
  * ptr0, a row_t size = 48bytes
  */
-
-using namespace tbb;
-
 
 constexpr static int MAX_FREEZE_RETRY = 4;//2 3 4
 constexpr static int MAX_INSERT_RETRY = 2;//4 6 8
@@ -244,36 +233,8 @@ public:
 
     message_upt(uint64_t payload_sz, row_t *newest) : newest(newest), payload_sz(payload_sz) {}
 };
-//struct message_key{
-//public:
-//    uint64_t key;
-//    uint64_t timestamp;
-//
-//    message_key(void) : key(), timestamp(0) {}
-//
-//    message_key(uint64_t k, uint64_t tstamp) : key(k), timestamp(tstamp) {}
-//
-//    friend bool operator<(const message_key & mkey1, const message_key & mkey2) {
-//        return mkey1.key < mkey2.key ||
-//               (mkey1.key == mkey2.key && mkey1.timestamp < mkey2.timestamp);
-//    }
-//
-//    friend bool operator<(const uint64_t & key, const message_key & mkey) {
-//        return key < mkey.key;
-//    }
-//
-//    friend bool operator<(const message_key & mkey, const uint64_t & key) {
-//        return mkey.key < key;
-//    }
-//
-//    friend bool operator==(const message_key &a, const message_key &b) {
-//        return a.key == b.key  ;
-//    }
-//
-//};
 
 class Stack;
-class StackL;
 class BaseNode {
 public:
 //    typedef btree_multimap<uint64_t,message_upt> MultiMap;
@@ -373,82 +334,53 @@ public:
 class LeafNode;
 class InternalNode : public BaseNode {
 public:
-    uint32_t segment_index=0;
-//    row_m row_meta[0];
 
-    static void New(InternalNode **new_node, uint32_t alloc_size,
-                    InnerNodeBuffer *inner_node_buffer)   {
-//        alloc_size = (alloc_size + sizeof(uint64_t) - 1)/ sizeof(uint64_t) * sizeof(uint64_t);
-//        auto entry_ = inner_node_buffer->NewEntry(alloc_size);
-//        char *inner_node_ = entry_.second;
+    static void New(InternalNode **new_node, uint32_t alloc_size )   {
 
-//        *new_node = reinterpret_cast<InternalNode *>(inner_node_);
-//        memset((*new_node), 0, alloc_size);
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
 
         (*new_node)->header.size = alloc_size;
         (*new_node)->update_messages = new StdMapp();
-//        (*new_node)->update_messages = new MessagesVec();
-//        (*new_node)->updateMessagesIdx = new HashMapp();
-//        (*new_node)->segment_index = entry_.first;
+
     }
 
 // Create an internal node with a new key and associated child pointers inserted
 // based on an existing internal node
     static void New(InternalNode *src_node,  char *key, uint32_t key_size,
                      uint64_t left_child_addr, uint64_t right_child_addr,
-                     InternalNode **new_node, InnerNodeBuffer *inner_node_buffer)   {
+                     InternalNode **new_node )   {
         size_t alloc_size = src_node->GetHeader()->size;
         alloc_size = alloc_size + row_m::PadKeyLength(key_size);
         alloc_size = alloc_size + sizeof(right_child_addr) + sizeof(row_m);
-//                src_node->GetHeader()->size +
-//                              row_m::PadKeyLength(key_size) +
-//                              sizeof(right_child_addr) + sizeof(row_m);
 
-//        alloc_size = (alloc_size + sizeof(uint64_t) - 1)/ sizeof(uint64_t) * sizeof(uint64_t);
-//        auto entry_ = inner_node_buffer->NewEntry(alloc_size);
-//        char *inner_node_ = entry_.second;
-//        *new_node = reinterpret_cast<InternalNode *>(inner_node_);
-//        memset((*new_node), 0, alloc_size);
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
 
         new(*new_node) InternalNode(alloc_size, src_node, 0, src_node->header.sorted_count,
                                     key, key_size, left_child_addr, right_child_addr);
 
         (*new_node)->update_messages = new StdMapp();
-//        (*new_node)->update_messages = new MessagesVec();
-//        (*new_node)->updateMessagesIdx = new HashMapp();
-//        (*new_node)->segment_index = entry_.first;
+
     }
 
 // Create an internal node with a single separator key and two pointers
     static void New( char * key, uint32_t key_size, uint64_t left_child_addr,
-                     uint64_t right_child_addr, InternalNode **new_node,
-                     InnerNodeBuffer *inner_node_buffer) {
+                     uint64_t right_child_addr, InternalNode **new_node ) {
         size_t alloc_size = sizeof(InternalNode);
         alloc_size = alloc_size + row_m::PadKeyLength(key_size);
         alloc_size = alloc_size + sizeof(left_child_addr) + sizeof(right_child_addr);
         alloc_size = alloc_size + sizeof(row_m) * 2;
-
-//        alloc_size = (alloc_size + sizeof(uint64_t) - 1)/ sizeof(uint64_t) * sizeof(uint64_t);
-//        auto entry_ = inner_node_buffer->NewEntry(alloc_size);
-//        char *inner_node_ = entry_.second;
-//        *new_node = reinterpret_cast<InternalNode *>(inner_node_);
 
         *new_node =  reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
 //        memset((*new_node), 0, alloc_size);
 
         new(*new_node) InternalNode(alloc_size, key, key_size, left_child_addr, right_child_addr);
         (*new_node)->update_messages = new StdMapp();
-//        (*new_node)->update_messages = new MessagesVec();
-//        (*new_node)->updateMessagesIdx = new HashMapp();
-//        (*new_node)->segment_index = entry_.first;
+
     }
     static void  New(InternalNode *src_node, uint32_t begin_meta_idx,
                            uint32_t nr_records,   char * key, uint32_t key_size,
                            uint64_t left_child_addr, uint64_t right_child_addr,
-                           InternalNode **new_node, uint64_t left_most_child_addr,
-                           InnerNodeBuffer *inner_node_buffer) {
+                           InternalNode **new_node, uint64_t left_most_child_addr  ) {
         // Figure out how large the new node will be
         size_t alloc_size = sizeof(InternalNode);
         if (begin_meta_idx > 0) {
@@ -470,20 +402,11 @@ public:
             alloc_size += (row_m::PadKeyLength(key_size) + sizeof(uint64_t) + sizeof(row_m));
         }
 
-//        alloc_size = (alloc_size + sizeof(uint64_t) - 1)/ sizeof(uint64_t) * sizeof(uint64_t);
-//        auto entry_ = inner_node_buffer->NewEntry(alloc_size);
-//        char *inner_node_ = entry_.second;
-//        *new_node = reinterpret_cast<InternalNode *>(inner_node_);
-//        memset(*new_node, 0, alloc_size);
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
 
         new (*new_node) InternalNode(alloc_size, src_node, begin_meta_idx, nr_records,
                                      key, key_size, left_child_addr, right_child_addr, left_most_child_addr);
         (*new_node)->update_messages = new StdMapp();
-//        (*new_node)->update_messages = new MessagesVec();
-//        (*new_node)->updateMessagesIdx = new HashMapp();
-//        (*new_node)->segment_index = entry_.first;
-
     }
 
     ~InternalNode() = default;
@@ -503,8 +426,7 @@ public:
     bool PrepareForSplit(Stack &stack, uint32_t split_threshold,
                            char * key, uint32_t key_size,
                          uint64_t left_child_addr, uint64_t right_child_addr,
-                         InternalNode **new_node, bool backoff,
-                         InnerNodeBuffer *inner_node_buffer);
+                         InternalNode **new_node, bool backoff );
 
     uint32_t GetChildIndex(const char * key, uint32_t key_size, bool get_le = true);
 
@@ -526,13 +448,6 @@ public:
         BaseNode *rt_node = reinterpret_cast<BaseNode *> (child_addr);
         return rt_node;
     }
-
-    inline uint32_t GetSegmentIndex(){
-        return segment_index;
-    }
-
-    ReturnCode I_pushdown_updates(std::set<LeafNode *> *l_stack, std::set<InternalNode *> *i_stack);
-
 
 };
 struct Roww {
@@ -572,7 +487,7 @@ struct Roww {
 };
 class LeafNode : public BaseNode {
 public:
-    static void New(LeafNode **mem, uint32_t node_size, DramBlockPool *leaf_node_pool);
+    static void New(LeafNode **mem, uint32_t node_size );
 
     static inline uint32_t GetUsedSpace(NodeHeader::StatusWord status) {
         uint32_t used_space = sizeof(LeafNode);
@@ -602,8 +517,6 @@ public:
                          uint32_t key_size, uint32_t payload_size,
                          LeafNode **left, LeafNode **right,
                          InternalNode **new_parent, bool backoff,
-                         DramBlockPool *leaf_node_pool,
-                         InnerNodeBuffer *inner_node_buffer,
                          std::vector<std::pair<uint64_t, message_upt>> *conflicts);
 
     uint32_t SortMetaByKey(std::vector<row_m> &vec, bool visible_only);
@@ -613,14 +526,14 @@ public:
                   typename std::vector<row_m>::iterator end_it ,
                   std::vector<std::pair<uint64_t, message_upt>> *conflicts);
 
-    ReturnCode RangeScanBySize(const char * key1, uint32_t size1, uint32_t to_scan,
-                               std::list<Roww *> *result);
+//    ReturnCode RangeScanBySize(const char * key1, uint32_t size1, uint32_t to_scan,
+//                               std::list<Roww *> *result);
 
     ReturnCode SearchRowMeta(char * key, uint32_t key_size,
                              row_m **out_metadata, uint32_t start_pos = 0,
                              uint32_t end_pos = (uint32_t) -1,
                              bool check_concurrency = true );
-    ReturnCode L_pushdown_updates( );
+
 
 private:
     enum Uniqueness {
@@ -666,44 +579,12 @@ struct Stack {
     inline BaseNode *GetRoot() { return root; }
     inline void SetRoot(BaseNode *node) { root = node; }
 };
-struct StackL {
-    struct Frame {
-        Frame() : node(nullptr), meta_index() {}
-        ~Frame() {}
 
-        LeafNode *node;
-        uint32_t meta_index;
-    };
-
-    static const uint32_t kMaxFrames = 32;
-    Frame frames[kMaxFrames];
-    uint32_t num_frames;
-    BaseNode *root;
-    IndexBtree *tree;
-
-    StackL() : num_frames(0) {}
-    ~StackL() { num_frames = 0; }
-
-    inline void Push(LeafNode *node, uint32_t meta_index) {
-        M_ASSERT(num_frames < kMaxFrames,"stack push num_frames < kMaxFrames.");
-        auto &frame = frames[num_frames++];
-        frame.node = node;
-        frame.meta_index = meta_index;
-    }
-    inline Frame *Pop() { return num_frames == 0 ? nullptr : &frames[--num_frames]; }
-    inline void Clear() {
-        root = nullptr;
-        num_frames = 0;
-    }
-    inline bool IsEmpty() { return num_frames == 0; }
-    inline Frame *Top() { return num_frames == 0 ? nullptr : &frames[num_frames - 1]; }
-    inline BaseNode *GetRoot() { return root; }
-    inline void SetRoot(BaseNode *node) { root = node; }
-};
 
 //============================BTree Store===================
 class IndexBtree : public index_base {
 public:
+    /**
     class Iterator {
     public:
         explicit Iterator(IndexBtree *tree,const char * begin_key, uint32_t begin_size, uint32_t scan_size ) :
@@ -715,10 +596,7 @@ public:
             node->RangeScanBySize(begin_key, begin_size,  scan_size, &item_vec);
         }
         ~Iterator() = default;
-        /**
-         * one by one leaf traverse for keys
-         * @return
-         */
+
         inline Roww *GetNext( ) {
             if (item_vec.empty() || remaining_size == 0) {
                 return nullptr;
@@ -770,6 +648,7 @@ public:
         LeafNode *node;
         std::list<Roww *> item_vec;
     };
+   */
 
     RC	init(uint32_t key_size, table_t * table_){  return RCOK; }
     RC 	index_next(uint64_t thd_id, void * *item, bool samekey = false) { return RCOK;}
@@ -805,57 +684,48 @@ public:
     }
 
     void initIndexBtree(int part_id, table_t * table_){
-        //for inner node
-//        ValenBufferPool *pool_ = new ValenBufferPool(500000000,500000000);
-//        auto inner_node_pool_ = new InnerNodeBuffer(pool_);
-
         ParameterSet param(SPLIT_THRESHOLD, MERGE_THRESHOLD, DRAM_BLOCK_SIZE,
                            PAYLOAD_SIZE, KEY_SIZE);
-//        auto leaf_node_pool_ = new DramBlockPool(DEFAULT_BLOCKS, DEFAULT_BLOCKS);
-//        Init(param, KEY_SIZE, table_, leaf_node_pool_,  inner_node_pool_);
-//        conflicts_ = Ebloom_filter(INI_BLOOM_SIZE, HASH_NUM);
 
-        Init(param, KEY_SIZE, table_, NULL,  NULL);
+        Init(param, KEY_SIZE, table_ );
     }
-    void Init (ParameterSet param, uint32_t key_size, table_t *table_,
-               DramBlockPool *leaf_node, InnerNodeBuffer *inner_node);
+    void Init (ParameterSet param, uint32_t key_size, table_t *table_ );
 
     RC TraverseToTarget(txn_man* txn,  Stack *stack, idx_key_t key,
                                uint32_t key_size, message_upt ** messge_upt,
-                               LeafNode **l_node, InternalNode **i_node,
-                               bool le_child = true);
+                               LeafNode **l_node, InternalNode **i_node, bool le_child = true);
     LeafNode *TraverseToLeaf(Stack *stack, const char * key, uint32_t key_size,
                                bool le_child = true);
-
-    inline Iterator *RangeScanBySize(const char * key1, uint32_t key_size, uint32_t scan_size ) {
-        Iterator *iterator = new Iterator(this, key1, key_size, scan_size);
-        return iterator;
-    }
-
-    void ReleaseLeafNode( char *node){
-        this->leaf_node_pool->Release(reinterpret_cast<DramBlock *>(node), 0);
-    }
-
-//    uint32_t GetTreeHeight(uint64_t key, uint32_t key_size){
-//        thread_local Stack stack;
-//        stack.tree = this;
-//        stack.Clear();
-//
-//        TraverseToLeaf(&stack, reinterpret_cast<char *>(&key),   key_size);
-//
-//        //parents
-//        uint32_t level = stack.num_frames;
-//        level= level+1;
-//        return level;
-//    }
-
     inline BaseNode *GetRootNodeSafe() {
         auto root_node = root;
         return reinterpret_cast<BaseNode *>(root_node);
     }
-
-//    inline void pushdown_handler(std::set<LeafNode *> *l_stack, std::set<InternalNode *> *i_stack);
     bool ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l  );
+
+/**
+//    inline Iterator *RangeScanBySize(const char * key1, uint32_t key_size, uint32_t scan_size ) {
+//        Iterator *iterator = new Iterator(this, key1, key_size, scan_size);
+//        return iterator;
+//    }
+
+//    void ReleaseLeafNode( char *node){
+//        this->leaf_node_pool->Release(reinterpret_cast<DramBlock *>(node), 0);
+//    }
+*/
+
+    uint32_t GetTreeHeight(uint64_t key, uint32_t key_size){
+        thread_local Stack stack;
+        stack.tree = this;
+        stack.Clear();
+
+        TraverseToLeaf(&stack, reinterpret_cast<char *>(&key),   key_size);
+
+        //parents
+        uint32_t level = stack.num_frames;
+        level= level+1;
+        return level;
+    }
+
 
 private:
     ReturnCode Insert(char * key, uint32_t key_size, row_t *&payload, uint32_t payload_size ,
@@ -868,8 +738,6 @@ private:
     bool ChangeRoot(uint64_t expected_root_addr, uint64_t new_root_addr);
 
     BaseNode *root;
-    DramBlockPool *leaf_node_pool;
-    InnerNodeBuffer *inner_node_pool;
     ParameterSet parameters;
     tsl::hopscotch_set<uint64_t> conflicts_k ;// inserts and update conflicts
     tsl::hopscotch_set<uint64_t> conflicts_txn ;

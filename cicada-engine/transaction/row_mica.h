@@ -12,7 +12,7 @@ enum class RowVersionStatus : uint8_t {
   kAborted,
   kCommitted,  // Commited as a valid version.
   kDeleted,    // Commited as a deleted row.
-  kDanging,  //for aggressive inlining
+  kDanging,   //for aggressive inlining
 };
 
 template <class StaticConfig>
@@ -29,6 +29,7 @@ struct RowVersion : public RowCommon<StaticConfig> {
   typename StaticConfig::ConcurrentTimestamp rts;
 
   volatile RowVersionStatus status;
+  bool is_updated;
   uint8_t numa_id;     // NUMA node ID (set by Table or SharedRowVersionPool).
   uint16_t size_cls;   // Size class (set by Table or SharedRowVersionPool).
   uint32_t data_size;  // Data size (set by Context).

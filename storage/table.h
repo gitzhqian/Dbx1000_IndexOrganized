@@ -2,13 +2,14 @@
 
 #include <global.h>
 //#include "index_hash.h"
-#include "btree_store.h"
 
 // TODO sequential scan is not supported yet.
 // only index access is supported for table.
 class Catalog;
 class row_t;
 class IndexBtree;
+class CIndexBtree;
+
 
 class table_t
 {
@@ -26,12 +27,16 @@ public:
 	// uint64_t get_table_size() { return cur_tab_size; };
 	Catalog * get_schema() { return schema; };
 	const char * get_table_name() { return table_name; };
+    uint64_t get_table_size() { return cur_tab_size ; };
 
 	Catalog * 		schema{};
+#if CC_ALG == MICA
+#else
 	void add_table_index(IndexBtree *the_index){
 	    this->table_index = the_index;
 	}
     IndexBtree* get_table_index(){return table_index;}
+#endif
 
 #if CC_ALG == MICA
 	MICADB* mica_db{};
@@ -40,9 +45,14 @@ public:
 
 private:
 	const char * 	table_name;
-	// uint64_t  		cur_tab_size;
+    uint64_t  		cur_tab_size;
 	uint64_t        part_cnt;
 	char 			pad[CL_SIZE - sizeof(void *)*3];
 //    IndexHash*      table_index;
-    IndexBtree*     table_index;
+
+#if CC_ALG == MICA
+
+#else
+    IndexBtree*      table_index;
+#endif
 };

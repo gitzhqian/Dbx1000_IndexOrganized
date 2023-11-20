@@ -131,7 +131,9 @@ void ycsb_query::gen_requests(uint64_t thd_id, workload* h_wl,  std::vector<uint
 //        printf("insert key idx   :%lu. \n", idx);
         qid++;
         uint64_t insert_k = insert_keys[qid];
-//        printf("insert key icx    :%lu. \n", qid);
+        if (insert_k == 0){
+            printf("insert key icx    :%lu. \n", insert_k);
+        }
 //        uint64_t insert_k = table_size + primary_key;
         req->key = insert_k;
         all_keys.insert(req->key);

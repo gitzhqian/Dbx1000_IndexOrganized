@@ -4,7 +4,7 @@
 /***********************************************/
 // Simulation + Hardware
 /***********************************************/
-#define THREAD_CNT					4
+#define THREAD_CNT					1
 #define PART_CNT					1
 // each transaction only accesses 1 virtual partition. But the lock/ts manager and index are not aware of such partitioning. VIRTUAL_PART_CNT describes the request distribution and is only used to generate queries. For HSTORE, VIRTUAL_PART_CNT should be the same as PART_CNT.
 #define VIRTUAL_PART_CNT			1
@@ -41,8 +41,8 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						HEKATON    // MICA
-#define ISOLATION_LEVEL 			SERIALIZABLE  //REPEATABLE_READ
+#define CC_ALG 						HEKATON    // MICA HEKATON
+#define ISOLATION_LEVEL 			REPEATABLE_READ  //REPEATABLE_READ SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
 #define KEY_ORDER					false
@@ -58,7 +58,7 @@
 #define ENABLE_LATCH				false
 #define CENTRAL_INDEX				false
 #define CENTRAL_MANAGER 			false
-#define INDEX_STRUCT				IndexHash  // IDX_MICA  IndexHash
+#define INDEX_STRUCT				IndexBtree   //IndexHash IDX_MICA  IndexBtree
 #define BTREE_ORDER 				16
 
 // [DL_DETECT]
@@ -111,22 +111,23 @@
 // max number of rows touched per transaction
 #define MAX_ROW_PER_TXN				1024
 #define QUERY_INTVL 				1UL
-#define MAX_TXN_PER_PART 			1000*10
+#define MAX_TXN_PER_PART 			(1000*100)
 #define MAX_WARMUP_DURATION         10.0
-#define MAX_TXN_DURATION            30.0
+#define MAX_TXN_DURATION            1000.0
 #define FIRST_PART_LOCAL 			true
-#define MAX_TUPLE_SIZE				1024 // in bytes
+#define MAX_TUPLE_SIZE				100 // in bytes
 // ==== [YCSB] ====
 #define INIT_PARALLELISM			1
 #define SYNTH_TABLE_SIZE 			(1024 * 1000)
-#define ZIPF_THETA 					0.9
+#define ZIPF_THETA 					0.0
 #define READ_PERC 					0.5
-#define WRITE_PERC 					0.5
+#define WRITE_PERC 					0.0
+#define INSERT_PERC 				0.5
 #define SCAN_PERC 					0
 #define SCAN_LEN					20
 #define PART_PER_TXN 				1
 #define PERC_MULTI_PART				1
-#define REQ_PER_QUERY				16
+#define REQ_PER_QUERY				4
 #define FIELD_PER_TUPLE				1
 // ==== [TPCC] ====
 // For large warehouse count, the tables do not fit in memory
@@ -266,9 +267,34 @@ extern TestCases					g_test_case;
 #define MICA_SLOW_GC 10
 
 #define PRINT_LAT_DIST false
+#define USE_INLINED_DATA      false
 
+#define AGGRESSIVE_INLINING   false
+#define BUFFERING             false
+#define MESSAGE_COUNT           240
+#define RESEIVE_COUNT           20
 
-#define AGGRESSIVE_INLINING   true
-#define USE_INLINED_DATA      true
+//#define DRAM_BLOCK_SIZE             1024
+#define DRAM_BLOCK_SIZE               440
+//#define DRAM_BLOCK_SIZE             1560
+//#define DRAM_BLOCK_SIZE             48*1024
+//256: 8 entries in inner node;
+//#define SPLIT_THRESHOLD             1024
+#define SPLIT_THRESHOLD             456
+#define PAYLOAD_SIZE                8
+#define KEY_SIZE                    8
+
+#define DEFAULT_BLOCKS               16*1024*1024
+#define BUFFER_SEGMENT_SIZE          1024*1024
+#define MERGE_THRESHOLD              512
+#define SECONDARY_INDEX              false
+
+//#define S1_KEY_SIZE                  10
+//#define S1_PAYLOAD_SIZE              8
+//#define S1_SPLIT_THRESHOLD           1024
+//#define S1_DRAM_BLOCK_SIZE           1536
+
+enum access_t {RD, WR, XP, SCAN, PEEK, SKIP, INS};
+enum RC { RCOK, Commit, Abort, WAIT, ERROR, FINISH};
 
 #endif

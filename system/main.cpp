@@ -11,6 +11,7 @@
 #include "occ.h"
 #include "vll.h"
 #include "table.h"
+#include "btree_store.h"
 #if INDEX_STRUCT == IDX_MICA
 #include "index_mica.h"
 #endif
@@ -149,6 +150,17 @@ int main(int argc, char* argv[]) {
 //    printf("MICA tables renewed\n");
 //  }
 //#endif
+
+    if (WORKLOAD == YCSB){
+        uint64_t table_sz = m_wl->tables["MAIN_TABLE"]->get_table_size();
+        printf("current main table size:%lu \n", table_sz);
+        ORDERED_INDEX *ixdx = m_wl->ordered_indexes["ORDERED_MAIN_INDEX"];
+        printf("current main index levels:%u \n", ixdx->GetTreeHeight((table_sz - 1), sizeof(uint64_t)));
+//        printf("current main index number of inner node:%u, number of leaf node:%u \n",
+//               m_wl->indexes["MAIN_INDEX"]->GetNumberOfNodes().first,
+//               m_wl->indexes["MAIN_INDEX"]->GetNumberOfNodes().second);
+        // printf("current secondary index size:%lu \n", m_wl->indexes["SECONDARY_INDEX"]->secondary_index_.size());
+    }
 
   uint64_t thd_cnt = g_thread_cnt;
   pthread_t p_thds[thd_cnt - 1];

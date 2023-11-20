@@ -7,7 +7,7 @@
 #include "row.h"
 #endif
 #include "txn.h"
-
+#if CC_ALG == MICA && INDEX_STRUCT == IndexHash
 RC IndexHash::init(uint64_t part_cnt, uint64_t bucket_cnt ) {
   _bucket_cnt = bucket_cnt;
   _bucket_cnt_per_part = bucket_cnt / part_cnt;
@@ -237,4 +237,5 @@ void BucketHeader::read_item(idx_key_t key, itemid_t*& item) {
   // M_ASSERT(cur_node->key == key, "Key does not exist!");
   item = cur_node->items;
 }
+#endif
 #endif

@@ -222,8 +222,7 @@ class RowVersionPool {
         auto state = &states_[numa_id * kClassCount + cls];
 
         if (state->current_free_count != 0) {
-          assert(state->group_count <
-                 StaticConfig::kRowVersionPoolGroupMaxCount);
+          assert(state->group_count < StaticConfig::kRowVersionPoolGroupMaxCount);
           state->groups[state->group_count].rv = state->rv;
           state->groups[state->group_count].count = state->current_free_count;
           state->group_count++;

@@ -63,9 +63,11 @@ class RowAccessHandle {
                     uint64_t off, uint64_t len) {
     tx_->prefetch_row(tbl, cf_id, row_id, off, len);
   }
-  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, void *row_head,
+  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, uint64_t primary_key,
+                void *row_head,
                 bool check_dup_access, bool read_hint, bool write_hint) {
-    return tx_->peek_row(*this, tbl, cf_id, row_id, row_head, check_dup_access, read_hint, write_hint);
+    return tx_->peek_row(*this, tbl, cf_id, row_id, primary_key,
+                         row_head, check_dup_access, read_hint, write_hint);
   }
   template <
       class DataCopier = typename Transaction<StaticConfig>::TrivialDataCopier>
@@ -185,17 +187,18 @@ class RowAccessHandlePeekOnly {
     (void)check_dup_access;
     (void)data_size;
     (void)data_copier;
+     (void)primary_key_;
     return false;
   }
   void prefetch_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id,
                     uint64_t off, uint64_t len) {
     tx_->prefetch_row(tbl, cf_id, row_id, off, len);
   }
-  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, void *row_haed,
+  bool peek_row(Table<StaticConfig>* tbl, uint16_t cf_id, uint64_t row_id, uint64_t primary_key, void *row_haed,
                 bool check_dup_access, bool read_hint, bool write_hint) {
     (void)read_hint;
     (void)write_hint;
-    return tx_->peek_row(*this, tbl, cf_id, row_id, row_haed, check_dup_access);
+    return tx_->peek_row(*this, tbl, cf_id, row_id, primary_key, row_haed, check_dup_access);
   }
   template <
       class DataCopier = typename Transaction<StaticConfig>::TrivialDataCopier>
@@ -230,6 +233,8 @@ class RowAccessHandlePeekOnly {
 
   uint64_t row_id() const { return row_id_; }
 
+  uint64_t primary_key() const {return primary_key_;}
+
   bool can_read() const { return read_rv_ != nullptr; }
   bool can_write() const { return false; }
   bool is_deleted() const { return read_rv_ != nullptr && read_rv_->deleted; }
@@ -250,14 +255,15 @@ class RowAccessHandlePeekOnly {
   RowAccessHandlePeekOnly() : read_rv_(nullptr) {}
 
   explicit RowAccessHandlePeekOnly(Transaction<StaticConfig>* tx)
-      : tx_(tx), tbl_(nullptr), cf_id_(0), row_id_(0), read_rv_(nullptr) {}
+      : tx_(tx), tbl_(nullptr), cf_id_(0), row_id_(0), read_rv_(nullptr),primary_key_(0) {}
 
   RowAccessHandlePeekOnly(const RowAccessHandlePeekOnly& o)
       : tx_(o.tx_),
         tbl_(o.tbl_),
         cf_id_(o.cf_id_),
         row_id_(o.row_id_),
-        read_rv_(nullptr) {}
+        read_rv_(nullptr),
+        primary_key_ (o.primary_key_){}
 
   RowAccessHandlePeekOnly& operator=(const RowAccessHandlePeekOnly& o) {
     tx_ = o.tx_;
@@ -265,6 +271,7 @@ class RowAccessHandlePeekOnly {
     cf_id_ = o.cf_id_;
     row_id_ = o.row_id_;
     read_rv_ = nullptr;
+      primary_key_ = o.primary_key;
     return *this;
   }
 
@@ -277,6 +284,8 @@ class RowAccessHandlePeekOnly {
   uint16_t cf_id_;
   uint64_t row_id_;
   RowVersion<StaticConfig>* read_rv_;
+
+  uint64_t primary_key_;
 };
 
 template <class StaticConfig>
@@ -290,6 +299,7 @@ struct RowAccessItem {
   Table<StaticConfig>* tbl;
   uint16_t cf_id;
   uint64_t row_id;
+  uint64_t primary_key_;
 
   RowHead<StaticConfig>* head;
   RowCommon<StaticConfig>* newer_rv;

@@ -29,13 +29,13 @@ size_t row_t::max_alloc_size() { return sizeof(row_t); }
 
 #endif
 
-RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_t row_id) {
+RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_t row_id, bool insert_row) {
     _primary_key = idx_key;
 	_row_id = row_id;
 	_part_id = part_id;
 	this->table = host_table;
 	is_deleted = 0;
-#if AGGRESSIVE_INLINING
+#if AGGRESSIVE_INLINING && CC_ALG != MICA
 	is_updated = 0;
 	this->next_row = nullptr;
 //	this->successor = nullptr;
@@ -48,7 +48,7 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 #if CC_ALG == MICA
   // We ignore the given row_id argument to init() because it contains an
   // uninitialized value and is not used by the workload.
-
+//  printf("part id:%lu\n", part_id);
   assert(part_id >= 0 && part_id < table->mica_tbl.size());
   auto db = table->mica_db;
   auto tbl = table->mica_tbl[part_id];
@@ -56,7 +56,7 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
   auto thread_id = ::mica::util::lcore.lcore_id();
   // printf("thread_id = %lu\n", thread_id);
 
-  MICATransaction tx(db->context(thread_id));
+    MICATransaction tx(db->context(thread_id));
 	Catalog * schema = host_table->get_schema();
 	//int tuple_size = schema->get_tuple_size();
 	while (true) {
@@ -64,17 +64,19 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 			assert(false);
 #if !TPCC_CF
 		MICARowAccessHandle rah(&tx);
-#if AGGRESSIVE_INLINING
-		if (!rah.new_row(idx_key, true, tbl, 0, MICATransaction::kNewRowID,
-                                                false, schema->cf_sizes[0]))
-#else
-        if (!rah.new_row(idx_key, false, tbl, 0, MICATransaction::kNewRowID,
-                                                false, schema->cf_sizes[0]))
-#endif
+        #if AGGRESSIVE_INLINING
+		    uint32_t data_size =  schema->cf_sizes[0] ;
+//		    printf("insert row data size: %u .\n", data_size);
+            if (!rah.new_row(idx_key, insert_row, tbl, 0, MICATransaction::kNewRowID,
+                                        false, data_size))
+        #else
+            if (!rah.new_row(idx_key, false, tbl, 0, MICATransaction::kNewRowID,
+                                                    false, schema->cf_sizes[0]))
+        #endif
         {
 			if (!tx.abort())
 				assert(false);
-			continue;
+			 continue;
 		}
 		_row_id = rah.row_id();
 		data = rah.data();
@@ -83,9 +85,9 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
                 _row_id = MICATransaction::kNewRowID;
                 for (uint64_t cf_id = 0; cf_id < table->get_schema()->cf_count; cf_id++) {
                   if (!rah.new_row(tbl, cf_id, _row_id, false, schema->cf_sizes[cf_id])) {
-			if (!tx.abort())
-				assert(false);
-			continue;
+                    if (!tx.abort())
+                        assert(false);
+                    continue;
                   }
                   if (cf_id == 0)
                     _row_id = rah.row_id();
@@ -142,11 +144,11 @@ row_t::switch_schema(table_t * host_table) {
 
 void row_t::init_manager(row_t * row) {
 #if CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE
-#ifdef USE_INLINED_DATA
-	// We can just use &manager[0].
-#else
-    manager = (Row_lock *) mem_allocator.alloc(sizeof(Row_lock), _part_id);
-#endif
+    #ifdef USE_INLINED_DATA
+        // We can just use &manager[0].
+    #else
+        manager = (Row_lock *) mem_allocator.alloc(sizeof(Row_lock), _part_id);
+    #endif
 #elif CC_ALG == TIMESTAMP
     manager = (Row_ts *) mem_allocator.alloc(sizeof(Row_ts), _part_id);
 #elif CC_ALG == MVCC
@@ -156,17 +158,17 @@ void row_t::init_manager(row_t * row) {
 #elif CC_ALG == OCC
     manager = (Row_occ *) mem_allocator.alloc(sizeof(Row_occ), _part_id);
 #elif CC_ALG == TICTOC
-#ifdef USE_INLINED_DATA
-	// We can just use &manager[0].
-#else
-	manager = (Row_tictoc *) mem_allocator.alloc(sizeof(Row_tictoc), _part_id);
-#endif
+    #ifdef USE_INLINED_DATA
+        // We can just use &manager[0].
+    #else
+        manager = (Row_tictoc *) mem_allocator.alloc(sizeof(Row_tictoc), _part_id);
+    #endif
 #elif CC_ALG == SILO
-#ifdef USE_INLINED_DATA
-	// We can just use &manager[0].
-#else
-	manager = (Row_silo *) mem_allocator.alloc(sizeof(Row_silo), _part_id);
-#endif
+    #ifdef USE_INLINED_DATA
+        // We can just use &manager[0].
+    #else
+        manager = (Row_silo *) mem_allocator.alloc(sizeof(Row_silo), _part_id);
+    #endif
 #elif CC_ALG == VLL
     manager = (Row_vll *) mem_allocator.alloc(sizeof(Row_vll), _part_id);
 #endif
@@ -453,7 +455,8 @@ RC row_t::get_row(access_t type, txn_man * txn, row_t *& row, row_t *& org_row) 
 #if CC_ALG == MICA
 #if !TPCC_CF
 RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
-                  row_t* access_row, uint64_t row_id, void *row_head, uint64_t part_id) {
+                  row_t* access_row, uint64_t row_id, uint64_t primary_key,
+                  void *row_head, uint64_t part_id) {
 #else
 RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
                   row_t* access_row, uint64_t row_id, uint64_t part_id,
@@ -483,9 +486,11 @@ RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
     }
 #endif
 
+    //PEEK, read without validation in read phase and pre-commit phase
+    //RD, read with validation in pre-commit, set peek in read phase
     if (this_type == PEEK) {
       MICARowAccessHandlePeekOnly rah(txn->mica_tx);
-      if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, nullptr, false, false, false))
+      if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, primary_key, nullptr, false, false, false))
         return Abort;
 #if !TPCC_CF
       access_row->data = const_cast<char*>(rah.cdata());
@@ -495,11 +500,11 @@ RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
     } else {
       MICARowAccessHandle rah(txn->mica_tx);
       if (this_type == RD) {
-        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, row_head, false, true, false) ||
+        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, primary_key, row_head, false, true, false) ||
             !rah.read_row())
           return Abort;
       } else if (this_type == WR) {
-        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id, row_head,false, true, true) ||
+        if (!rah.peek_row(table->mica_tbl[part_id], cf_id, row_id,primary_key, row_head,false, true, true) ||
             !rah.read_row() || !rah.write_row())
           return Abort;
       } else {
@@ -507,7 +512,8 @@ RC row_t::get_row(access_t type, txn_man* txn, table_t* table,
         return Abort;
       }
 #if !TPCC_CF
-      if (this_type == RD)
+      //add if peek return the head's read version
+      if (this_type == RD || PEEK)
         access_row->data = const_cast<char*>(rah.cdata());
       else
         access_row->data = rah.data();

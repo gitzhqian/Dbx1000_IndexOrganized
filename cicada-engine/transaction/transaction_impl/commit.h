@@ -51,7 +51,7 @@ bool Transaction<StaticConfig>::begin(bool peek_only,
     RAH rah(this);
     for (auto& item : to_reserve_) {
       rah.reset();
-      if (!peek_row(rah, item.tbl, item.cf_id, item.row_id, nullptr,
+      if (!peek_row(rah, item.tbl, item.cf_id, item.row_id,0, nullptr,
                     false, item.read_hint, item.write_hint)) {
         retry = true;
         break;
@@ -139,9 +139,10 @@ bool Transaction<StaticConfig>::check_version() {
     auto item = &accesses_[i];
 
     // These states do not need any validation.
+    // now does not validation read set, REPEATABLE_READ
     if (item->state == RowAccessState::kInvalid ||
         item->state == RowAccessState::kNew ||
-        item->state == RowAccessState::kPeek)
+        item->state == RowAccessState::kPeek )
       continue;
 
     //to check if the read version is changed

@@ -173,10 +173,7 @@ void Stats::print(double sim_time) {
         total_time_get_row+= _stats[tid]->time_get_row;
 
 		printf("[tid=%ld] txn_cnt=%ld,abort_cnt=%ld\n",
-			tid,
-			_stats[tid]->txn_cnt,
-			_stats[tid]->abort_cnt
-		);
+			    tid, _stats[tid]->txn_cnt, _stats[tid]->abort_cnt );
 	}
 	FILE * outf;
 	if (output_file != NULL) {
@@ -189,7 +186,8 @@ void Stats::print(double sim_time) {
             ", time_root_to_leaf=%f, time_indirect_layer=%f, time_version_chain=%f, time_get_row=%f\n",
 			total_txn_cnt,
 			total_abort_cnt,
-			total_run_time / BILLION,
+//			total_run_time / BILLION,
+			sim_time,
 			total_time_wait / BILLION,
 			total_time_ts_alloc / BILLION,
 			(total_time_man - total_time_wait) / BILLION,
@@ -207,10 +205,10 @@ void Stats::print(double sim_time) {
 			total_debug3, // / BILLION,
 			total_debug4, // / BILLION,
 			total_debug5 / BILLION,
-                total_time_root_to_leaf / BILLION,
-                total_time_indirect_layer / BILLION,
-                total_time_version_chain / BILLION,
-                total_time_get_row / BILLION
+            total_time_root_to_leaf / BILLION,
+            total_time_indirect_layer / BILLION,
+            total_time_version_chain / BILLION,
+            total_time_get_row / BILLION
 		);
 		fclose(outf);
 	}
@@ -258,6 +256,7 @@ void Stats::print(double sim_time) {
 			total_tpcc_stock_level_commit, total_tpcc_stock_level_abort);
 	}
 	printf("[summary] tput(txn/s)=%.0lf\n", total_txn_cnt / sim_time);
+    printf("elapsed(sec): %.0lf\n", sim_time);
 //    printf("[summary] throughput(ops/s) =%f\n" ,
 //           ((total_txn_cnt * g_req_per_query) / (total_run_time / BILLION))* THREAD_CNT);
 

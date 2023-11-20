@@ -8,21 +8,23 @@
 
 #if INDEX_STRUCT == IDX_MICA
 
-using ::mica::transaction::BTreeRangeType;
+//using ::mica::transaction::BTreeRangeType;
 
 template <typename MICAIndexT>
 RC IndexMICAGeneric<MICAIndexT>::init(uint64_t part_cnt, table_t* table) {
-  if (typeid(MICAIndexT) == typeid(MICAOrderedIndex))
-    return init(part_cnt, table, 0);
-  else {
+  if (typeid(MICAIndexT) == typeid(MICACBtreeIndex)){
+      this->table = table;
+      return init(part_cnt, table, 0);
+  } else {
     assert(false);
     return ERROR;
   }
 }
 
+/**
 template <>
-RC IndexMICAGeneric<MICAIndex>::init(uint64_t part_cnt, table_t* table,
-                                     uint64_t bucket_cnt) {
+RC IndexMICAGeneric<MICACBtreeIndex>::init(uint64_t part_cnt, table_t* table,
+                                           uint64_t bucket_cnt) {
   this->table = table;
   this->bucket_cnt = bucket_cnt;
 
@@ -67,7 +69,7 @@ RC IndexMICAGeneric<MICAIndex>::init(uint64_t part_cnt, table_t* table,
 }
 
 template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::init(uint64_t part_cnt, table_t* table,
+RC IndexMICAGeneric<MICACBtreeIndex>::init(uint64_t part_cnt, table_t* table,
                                             uint64_t bucket_cnt) {
   this->table = table;
   this->bucket_cnt = bucket_cnt;
@@ -90,15 +92,15 @@ RC IndexMICAGeneric<MICAOrderedIndex>::init(uint64_t part_cnt, table_t* table,
     while (true) {
       sprintf(buf, "%s_IDX_%d", table->get_table_name(), i);
       // if (mica_tbl->db()->create_btree_index_nonunique_u64(buf, mica_tbl))
-      if (mica_tbl->db()->create_btree_index_unique_u64(buf, mica_tbl)) break;
+      if (mica_tbl->db()->create_cbtree_index_unique_u64(buf, mica_tbl)) break;
       i++;
     }
     // auto p = mica_tbl->db()->get_btree_index_nonunique_u64(buf);
-    auto p = mica_tbl->db()->get_btree_index_unique_u64(buf);
+    auto p = mica_tbl->db()->get_cbtree_index_unique_u64(buf);
     assert(p != nullptr);
 
     MICATransaction tx(db->context(thread_id));
-    if (!p->init(&tx)) {
+    if (!p->init(&tx, sizeof(uint64_t))) {
       assert(false);
       return ERROR;
     }
@@ -112,57 +114,140 @@ RC IndexMICAGeneric<MICAOrderedIndex>::init(uint64_t part_cnt, table_t* table,
 
   return RCOK;
 }
+ */
 
 template <>
-RC IndexMICAGeneric<MICAIndex>::index_insert(txn_man* txn, MICATransaction* tx,
-                                             idx_key_t key, row_t* row,
-                                             int part_id) {
-  auto ret = mica_idx[part_id]->insert(tx, key, (uint64_t)row);
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
-  if (ret != 1) return ERROR;
+RC IndexMICAGeneric<MICACBtreeIndex>::init(uint64_t part_cnt, table_t* table, int part_id ) {
+    auto db = table->mica_db;
+
+    // printf("idx=%p part_cnt=%d bucket_cnt=%" PRIu64 "\n", this, part_cnt,
+    // bucket_cnt);
+
+    for (uint64_t part_id = 0; part_id < part_cnt; part_id++) {
+        uint64_t thread_id = part_id % g_thread_cnt;
+        ::mica::util::lcore.pin_thread(thread_id);
+
+        auto mica_tbl = table->mica_tbl[part_id];
+
+        char buf[1024];
+        int i = 0;
+        while (true) {
+            sprintf(buf, "%s_IDX_%d", table->get_table_name(), i);
+            // if (mica_tbl->db()->create_btree_index_nonunique_u64(buf, mica_tbl))
+            if (mica_tbl->db()->create_cbtree_index_unique_u64(buf, mica_tbl)) break;
+            i++;
+        }
+        // auto p = mica_tbl->db()->get_btree_index_nonunique_u64(buf);
+        auto p = mica_tbl->db()->get_cbtree_index_unique_u64(buf);
+        assert(p != nullptr);
+
+        MICATransaction tx(db->context(thread_id));
+        if (!p->init(&tx, sizeof(uint64_t))) {
+            assert(false);
+            return ERROR;
+        }
+
+        printf("idx_name=%s part_id=%" PRIu64 " part_cnt=%" PRIu64
+               "  " PRIu64 "\n",
+               buf, part_id, part_cnt );
+
+        mica_idx.push_back(p);
+    }
+
+    return RCOK;
+}
+
+template<>
+RC IndexMICAGeneric<MICACBtreeIndex>::index_insert(txn_man* txn, MICATransaction* tx,
+                                                   idx_key_t key, uint64_t row_id, int part_id) {
+  void *null_payload;
+
+  auto ret = mica_idx[0]->index_insert(tx, key, null_payload, row_id, sizeof(uint64_t));
+//  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
+  if (ret != RCOK) return ERROR;
 
   return RCOK;
 }
 
-template <>
-RC IndexMICAGeneric<MICAIndex>::index_remove(txn_man* txn, MICATransaction* tx,
-                                             idx_key_t key, row_t* row,
-                                             int part_id) {
-  auto ret = mica_idx[part_id]->remove(tx, key, (uint64_t)row);
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
-  if (ret != 1) return ERROR;
-
-  return RCOK;
-}
 
 template <>
-RC IndexMICAGeneric<MICAIndex>::index_read(txn_man* txn, idx_key_t key,
-                                           void** row, int part_id) {
-  auto tx = txn->mica_tx;
-  bool skip_validation = !(MICA_FULLINDEX);
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read(txn_man* txn, idx_key_t key,
+                                                 void*& row, access_t type, int part_id) {
 
-#if AGGRESSIVE_INLINING
-  auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                         [&row](uint64_t key, void * row_head) {
-                                             *row = row_head;
-                                             return false;
-                                         });
-#else
-  auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                       [&row](uint64_t key, uint64_t value) {
-                                         *row = (void*)value;
-                                         return false;
-                                       });
-#endif
+  auto ret = mica_idx[0]->index_read( key, row, type);
 
-  if (ret == 0) return ERROR;
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
+  if (ret != RCOK) return ERROR;
+//  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   // printf("%lu %lu\n", key, (uint64_t)row);
   return RCOK;
 }
+template <>
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_buffer(txn_man* txn, idx_key_t key,
+                                                        void*& row, access_t type, int part_id) {
+
+    auto ret = mica_idx[0]->index_read_buffer( key, row, type, part_id);
+
+    if (ret != RCOK) return ERROR;
+//  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
+    // printf("%lu %lu\n", key, (uint64_t)row);
+    return RCOK;
+}
+/**
+template <>
+RC IndexMICAGeneric<MICACBtreeIndex>::index_insert(txn_man* txn,
+                                                   MICATransaction* tx,
+                                                   idx_key_t key, row_t* row,
+                                                   int part_id) {
+    auto ret = mica_idx[part_id]->insert(tx, key, (uint64_t)row);
+    if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
+    if (ret != 1) return ERROR;
+
+    return RCOK;
+}
+
 
 template <>
-RC IndexMICAGeneric<MICAIndex>::index_read_multiple(txn_man* txn, idx_key_t key,
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read(txn_man* txn, idx_key_t key,
+                                                 void** row, int part_id) {
+    auto tx = txn->mica_tx;
+#if SIMPLE_INDEX_UPDATE || !TPCC_VALIDATE_NODE
+    bool skip_validation = !(MICA_FULLINDEX);
+#else
+    bool skip_validation = false;
+#endif
+
+    // auto ret =
+    //     mica_idx[part_id]
+    //         ->lookup<BTreeRangeType::kInclusive, BTreeRangeType::kOpen, false>(
+    //             tx, std::make_pair(key, 0), std::make_pair(key, 0),
+    //             skip_validation, [&key, &row](auto& k, auto v) {
+    //               if (k.first == key) *row = (row_t*)k.second;
+    //               return false;
+    //             });
+    auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
+                                         [&key, &row](uint64_t k, uint64_t v) {
+                                             *row = (void*)v;
+                                             return false;
+                                         });
+    if (ret == 0) return ERROR;
+    if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
+    // printf("%lu %lu\n", key, (uint64_t)row);
+    return RCOK;
+}
+
+
+template <>
+RC IndexMICAGeneric<MICACBtreeIndex>::index_remove(txn_man* txn, MICATransaction* tx,
+                                             idx_key_t key, row_t* row,
+                                             int part_id) {
+  auto ret = mica_idx[part_id]->remove(tx, key, (uint64_t)row);
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
+  if (ret != 1) return ERROR;
+
+  return RCOK;
+}
+template <>
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_multiple(txn_man* txn, idx_key_t key,
                                                     void** rows, size_t& count,
                                                     int part_id) {
   auto tx = txn->mica_tx;
@@ -185,14 +270,14 @@ RC IndexMICAGeneric<MICAIndex>::index_read_multiple(txn_man* txn, idx_key_t key,
                                            });
 #endif
 
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   count = i;
   // printf("%lu %lu\n", key, (uint64_t)row);
   return RCOK;
 }
 
 template <>
-RC IndexMICAGeneric<MICAIndex>::index_read_range(txn_man* txn,
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_range(txn_man* txn,
                                                  idx_key_t min_key,
                                                  idx_key_t max_key,
                                                  row_t** rows, size_t& count,
@@ -203,7 +288,7 @@ RC IndexMICAGeneric<MICAIndex>::index_read_range(txn_man* txn,
 }
 
 template <>
-RC IndexMICAGeneric<MICAIndex>::index_read_range_rev(
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_range_rev(
     txn_man* txn, idx_key_t min_key, idx_key_t max_key, row_t** rows,
     size_t& count, int part_id) {
   // Not supported.
@@ -212,60 +297,20 @@ RC IndexMICAGeneric<MICAIndex>::index_read_range_rev(
 }
 
 template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_insert(txn_man* txn,
-                                                    MICATransaction* tx,
-                                                    idx_key_t key, row_t* row,
-                                                    int part_id) {
-  auto ret = mica_idx[part_id]->insert(tx, key, (uint64_t)row);
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
-  if (ret != 1) return ERROR;
-
-  return RCOK;
-}
-
-template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_remove(txn_man* txn,
+RC IndexMICAGeneric<MICACBtreeIndex>::index_remove(txn_man* txn,
                                                     MICATransaction* tx,
                                                     idx_key_t key, row_t* row,
                                                     int part_id) {
   auto ret = mica_idx[part_id]->remove(tx, key, (uint64_t)row);
-  if (ret == MICAIndex::kHaveToAbort) return Abort;
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   if (ret != 1) return ERROR;
 
   return RCOK;
 }
 
-template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_read(txn_man* txn, idx_key_t key,
-                                                  void** row, int part_id) {
-  auto tx = txn->mica_tx;
-#if SIMPLE_INDEX_UPDATE || !TPCC_VALIDATE_NODE
-  bool skip_validation = !(MICA_FULLINDEX);
-#else
-  bool skip_validation = false;
-#endif
-
-  // auto ret =
-  //     mica_idx[part_id]
-  //         ->lookup<BTreeRangeType::kInclusive, BTreeRangeType::kOpen, false>(
-  //             tx, std::make_pair(key, 0), std::make_pair(key, 0),
-  //             skip_validation, [&key, &row](auto& k, auto v) {
-  //               if (k.first == key) *row = (row_t*)k.second;
-  //               return false;
-  //             });
-  auto ret = mica_idx[part_id]->lookup(tx, key, skip_validation,
-                                       [&key, &row](uint64_t k, uint64_t v) {
-                                         *row = (void*)v;
-                                         return false;
-                                       });
-  if (ret == 0) return ERROR;
-  if (ret == MICAOrderedIndex::kHaveToAbort) return Abort;
-  // printf("%lu %lu\n", key, (uint64_t)row);
-  return RCOK;
-}
 
 template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_read_multiple(
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_multiple(
     txn_man* txn, idx_key_t key, void** rows, size_t& count, int part_id) {
   auto tx = txn->mica_tx;
 #if SIMPLE_INDEX_UPDATE || !TPCC_VALIDATE_NODE
@@ -291,14 +336,14 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_multiple(
         rows[i++] = (row_t*)v;
         return i < count;
       });
-  if (ret == MICAOrderedIndex::kHaveToAbort) return Abort;
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   count = i;
   // printf("%lu %lu\n", key, (uint64_t)rows[0]);
   return RCOK;
 }
 
 template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range(
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_range(
     txn_man* txn, idx_key_t min_key, idx_key_t max_key, row_t** rows,
     size_t& count, int part_id) {
   auto tx = txn->mica_tx;
@@ -326,14 +371,14 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range(
                             rows[i++] = (row_t*)v;
                             return i < count;
                           });
-  if (ret == MICAOrderedIndex::kHaveToAbort) return Abort;
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   count = i;
   // printf("%lu %lu\n", key, (uint64_t)rows[0]);
   return RCOK;
 }
 
 template <>
-RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range_rev(
+RC IndexMICAGeneric<MICACBtreeIndex>::index_read_range_rev(
     txn_man* txn, idx_key_t min_key, idx_key_t max_key, row_t** rows,
     size_t& count, int part_id) {
   auto tx = txn->mica_tx;
@@ -361,14 +406,16 @@ RC IndexMICAGeneric<MICAOrderedIndex>::index_read_range_rev(
                            rows[i++] = (row_t*)v;
                            return i < count;
                          });
-  if (ret == MICAOrderedIndex::kHaveToAbort) return Abort;
+  if (ret == MICACBtreeIndex::kHaveToAbort) return Abort;
   count = i;
   // printf("%lu %lu\n", key, (uint64_t)rows[0]);
   return RCOK;
 }
+*/
 
-template class IndexMICAGeneric<MICAIndex>;
 
-template class IndexMICAGeneric<MICAOrderedIndex>;
+//template class IndexMICAGeneric<MICAIndex>;
+
+template class IndexMICAGeneric<MICACBtreeIndex>;
 
 #endif

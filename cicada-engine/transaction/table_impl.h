@@ -191,8 +191,7 @@ RowHead<StaticConfig>* Table<StaticConfig>::alt_head(uint16_t cf_id,
   // __builtin_prefetch(h, 0, 3);
   if (StaticConfig::kInlinedRowVersion &&
       (sizeof(RowHead<StaticConfig>) + sizeof(RowVersion<StaticConfig>) +
-       StaticConfig::kInlineThreshold) > 64 &&
-      cf.inlining && cf.rh_size > 64)
+       StaticConfig::kInlineThreshold) > 64 && cf.inlining && cf.rh_size > 64)
     __builtin_prefetch(h + 64, 0, 3);
   // if (StaticConfig::kInlinedRowVersion &&
   //     (sizeof(RowHead<StaticConfig>) + sizeof(RowVersion<StaticConfig>) +
@@ -214,8 +213,7 @@ RowGCInfo<StaticConfig>* Table<StaticConfig>::gc_info(uint16_t cf_id,
   auto p = root_[row_id >> row_id_shift_];
   auto g = reinterpret_cast<RowGCInfo<StaticConfig>*>(
       p + second_level_width_ * total_rh_size_ +
-      ((row_id & row_id_mask_) * cf_count_ + cf_id) *
-          sizeof(RowGCInfo<StaticConfig>));
+      ((row_id & row_id_mask_) * cf_count_ + cf_id) * sizeof(RowGCInfo<StaticConfig>));
   return g;
 }
 

@@ -516,7 +516,7 @@ uint128 CityHash128(const char *s, size_t len) {
 }
 
 #ifdef __SSE4_2__
-#include "citycrc_mod.h"
+//#include "citycrc_mod.h"
 #include <nmmintrin.h>
 
 // Requires len >= 240.

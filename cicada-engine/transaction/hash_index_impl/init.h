@@ -17,13 +17,11 @@ HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::HashIndex(
       hash_(hash),
       key_equal_(key_equal) {
   static_assert(std::is_trivially_copyable<Key>::value, "trivially copyable keys required");
-
   // bucket_count_ = expected_num_rows * 11 / 10 /
   //                 Bucket::kBucketSize;  // 10% provisioning
   bucket_count_ = expected_num_rows * 10 / 10 / Bucket::kBucketSize;  // 20% provisioning
   // bucket_count_ = expected_num_rows * 15 / 10 /
   //                 Bucket::kBucketSize;  // 50% provisioning
-
   bucket_count_ = ::mica::util::next_power_of_two(bucket_count_);
   bucket_count_mask_ = bucket_count_ - 1;
 
@@ -69,7 +67,7 @@ bool HashIndex<StaticConfig, UniqueKey, Key, Hash, KeyEqual>::init(Transaction* 
 
     if (i % kBatchSize == kBatchSize - 1 || i == bucket_count_ - 1) {
       if (!tx->commit([](char* unused){ return true; })) {
-        printf("failed to insert buckets\n");
+        printf("failed to insert buckets. \n");
         return false;
       }
     }

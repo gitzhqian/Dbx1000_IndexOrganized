@@ -6,9 +6,12 @@
 
 namespace mica {
 namespace transaction {
+#if CC_ALG == MICA
 template <class StaticConfig>
 template <class DataCopier>
-bool Transaction<StaticConfig>::new_row(uint64_t idx_key, bool aggressive_get_new_row, RAH& rah,
+bool Transaction<StaticConfig>::new_row(uint64_t idx_key,
+                                        bool aggressive_insert_row,
+                                        RAH& rah,
                                         Table<StaticConfig>* tbl,
                                         uint16_t cf_id, uint64_t row_id,
                                         bool check_dup_access,
@@ -28,27 +31,52 @@ bool Transaction<StaticConfig>::new_row(uint64_t idx_key, bool aggressive_get_ne
 
   RowHead<StaticConfig>* head= nullptr;
   RowVersion<StaticConfig>* write_rv= nullptr;
+  void * head_ = nullptr;
   AggressiveRowHead<StaticConfig>* row_head = nullptr;
   //if aggressive inlining, when ycsb_wl->get_new_row
-  if(aggressive_get_new_row == true ){
 #if AGGRESSIVE_INLINING
-      auto idx_hash = tbl->get_idx_hash(0);
-      row_head = idx_hash->idx_head(rah, idx_key);
-      if (row_head == NULL){
-          printf("aggressive inlining get new row head fail.");
+      //auto idx_hash = tbl->get_idx_hash(0);
+      //row_head = idx_hash->idx_head(rah, idx_key);
+      //1.insert a row to btree
+      //2.get a new location
+      //3.if success, set value
+      //4.if fail, set the location invisible
+      auto idx_cbtree_ = tbl->get_idx_cbtree();
+      auto payload_sz = sizeof(AggressiveRowHead<StaticConfig>) + sizeof(RowVersion<StaticConfig>) +
+                       sizeof(RowCommon<StaticConfig>) + data_size;
+      RC rc;
+      bool if_buffer_insert = false;
+      #if BUFFERING
+            if_buffer_insert = true;
+      #endif
+      if (aggressive_insert_row && if_buffer_insert) {
+          row_head = (AggressiveRowHead<StaticConfig>*) _mm_malloc(payload_sz, CL_SIZE);
+          write_rv = &row_head->inlined_rv[0];
+          write_rv->data_size = data_size;
+          write_rv->older_rv = nullptr;
+          write_rv->wts = ts_;
+          write_rv->rts.init(ts_);
+          write_rv->status = RowVersionStatus::kPending;
+          rc = idx_cbtree_->index_insert_buffer( idx_key, row_head, payload_sz);
+      }else {
+          rc = idx_cbtree_->index_insert(this, idx_key, head_, 0, payload_sz);
+          row_head = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(head_);
+          write_rv = &row_head->inlined_rv[0];
+          write_rv->data_size = data_size;
+          write_rv->older_rv = nullptr;
+          write_rv->wts = ts_;
+          write_rv->rts.init(ts_);
+          write_rv->status = RowVersionStatus::kPending;
       }
-      write_rv = &row_head->inlined_rv[0] ;
 
-      write_rv->data_size = data_size;
-      write_rv->older_rv = nullptr;
-      write_rv->wts = ts_;
-      write_rv->rts.init(ts_);
-      write_rv->status = RowVersionStatus::kPending;
-#endif
-  } else{
+      if (rc == Abort){
+//          printf("aggressive inlining get new row head fail.");
+          return false;
+      }
+
+#else
       if (cf_id == 0) {
           if (row_id != kNewRowID) return false;
-
           row_id = ctx_->allocate_row(tbl);
           if (row_id == static_cast<uint64_t>(-1)) {
               // TODO: Use different stats counter.
@@ -79,7 +107,7 @@ bool Transaction<StaticConfig>::new_row(uint64_t idx_key, bool aggressive_get_ne
       write_rv->rts.init(ts_);
       write_rv->status = RowVersionStatus::kPending;
   }
-
+#endif
 
   //todo:for test
     if (head != nullptr) {
@@ -121,8 +149,7 @@ bool Transaction<StaticConfig>::new_row(uint64_t idx_key, bool aggressive_get_ne
       access_bucket_count_ = StaticConfig::kAccessBucketRootCount;
     }
 
-    bkt_id = (reinterpret_cast<size_t>(tbl) / 64 + row_id) %
-             StaticConfig::kAccessBucketRootCount;
+    bkt_id = (reinterpret_cast<size_t>(tbl) / 64 + row_id) % StaticConfig::kAccessBucketRootCount;
     bkt = &access_buckets_[bkt_id];
     while (true) {
       if (bkt->next == AccessBucket::kEmptyBucketID) break;
@@ -163,8 +190,8 @@ bool Transaction<StaticConfig>::new_row(uint64_t idx_key, bool aggressive_get_ne
 //                             nullptr,      nullptr       /*, ts_*/};
 //#else
   accesses_[access_size_] = {access_size_, 0,        RowAccessState::kNew,
-                            tbl,          cf_id,    row_id,
-                            head,         head,     write_rv,
+                            tbl,          cf_id,     row_id, idx_key,
+                            head,         head,      write_rv,
                             nullptr,      row_head    /*, ts_*/};
 //#endif
   access_size_++;
@@ -199,10 +226,9 @@ void Transaction<StaticConfig>::prefetch_row(Table<StaticConfig>* tbl,
 
 template <class StaticConfig>
 bool Transaction<StaticConfig>::peek_row(RAH& rah, Table<StaticConfig>* tbl,
-                                         uint16_t cf_id, uint64_t row_id,
+                                         uint16_t cf_id, uint64_t row_id, uint64_t primary_key,
                                          void *row_head,
-                                         bool check_dup_access, bool read_hint,
-                                         bool write_hint) {
+                                         bool check_dup_access, bool read_hint, bool write_hint) {
   assert(began_);
   if (rah) return false;
 
@@ -254,11 +280,12 @@ bool Transaction<StaticConfig>::peek_row(RAH& rah, Table<StaticConfig>* tbl,
   RowHead<StaticConfig> *head;
   RowCommon<StaticConfig> *newer_rv;
   RowVersion<StaticConfig> *rv;
-  if (row_head != nullptr) {
+#if AGGRESSIVE_INLINING
+      assert(row_head != nullptr);
       head_ = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_head);
       newer_rv = head_->inlined_rv;
       rv = head_->inlined_rv;
-  }else {
+#else
       head = tbl->head(cf_id, row_id);
       if (StaticConfig::kInlinedRowVersion && StaticConfig::kInlineWithAltRow &&
           tbl->inlining(cf_id)) {
@@ -267,7 +294,7 @@ bool Transaction<StaticConfig>::peek_row(RAH& rah, Table<StaticConfig>* tbl,
       }
       newer_rv = head;
       rv = head->older_rv;
-  }
+#endif
 
   switch (static_cast<int>(read_hint) * 2 + static_cast<int>(write_hint)) {
     default:
@@ -346,6 +373,7 @@ bool Transaction<StaticConfig>::peek_row(RAH& rah, Table<StaticConfig>* tbl,
                              tbl,
                              cf_id,
                              row_id,
+                             primary_key,
                              head,
                              newer_rv,
                              nullptr,
@@ -358,8 +386,8 @@ bool Transaction<StaticConfig>::peek_row(RAH& rah, Table<StaticConfig>* tbl,
 
 template <class StaticConfig>
 bool Transaction<StaticConfig>::peek_row(RAHPO& rah, Table<StaticConfig>* tbl,
-                                         uint16_t cf_id, uint64_t row_id, void *row_head,
-                                         bool check_dup_access) {
+                                         uint16_t cf_id, uint64_t row_id, uint64_t primary_key,
+                                         void *row_head, bool check_dup_access) {
   assert(began_);
   if (rah) return false;
 
@@ -397,10 +425,10 @@ bool Transaction<StaticConfig>::peek_row(RAHPO& rah, Table<StaticConfig>* tbl,
   }
 
 #if AGGRESSIVE_INLINING
-  auto head = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(tbl->head(cf_id, row_id));
+  assert(row_head != nullptr);
+  auto head = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_head);
   auto rv = head->inlined_rv;
   RowCommon<StaticConfig>* newer_rv = head;
-
 #else
   auto head = tbl->head(cf_id, row_id);
   if (StaticConfig::kInlinedRowVersion && StaticConfig::kInlineWithAltRow &&
@@ -422,6 +450,7 @@ bool Transaction<StaticConfig>::peek_row(RAHPO& rah, Table<StaticConfig>* tbl,
   rah.cf_id_ = cf_id;
   rah.row_id_ = row_id;
   rah.read_rv_ = rv;
+  rah.primary_key_ = primary_key;
 
   return true;
 }
@@ -718,12 +747,34 @@ bool Transaction<StaticConfig>::insert_version_deferred(const Func& func) {
       }
 
 #if AGGRESSIVE_INLINING
-      auto head_agg = item->row_head;
+      //for update, because the item may be moved by spliting
+      //if btree, should read index again
+      //if buffer btree, just read index buffer again
+        auto access_idx = item->tbl->get_idx_cbtree();
+        auto key = item->primary_key_;
+        void* row_again = nullptr;
+        AggressiveRowHead<StaticConfig> *head_agg = item->row_head;
+        #if BUFFERING
+            auto ret = access_idx->index_read_buffer_again(this, key, row_again, RD, 0);
+            if (ret){
+                assert(true);
+                head_agg = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_again);
+            }
+        #else
+            auto retrc = access_idx->index_read( key, row_again, RD);
+            if (retrc == RCOK){
+                head_agg = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_again);
+            }else{
+                return false;
+            }
+        #endif
+
+      head_agg->inlined_rv->is_updated = false;
       auto older_rv_agg = head_agg->inlined_rv;
       if (older_rv_agg->wts > ts_) continue;
       item->write_rv->older_rv = older_rv_agg->older_rv;
       if(!__sync_bool_compare_and_swap(&older_rv_agg->status, RowVersionStatus::kCommitted,
-                                      RowVersionStatus::kDanging))
+                                          RowVersionStatus::kDanging))
           continue;
       older_rv_agg->older_rv = item->write_rv;
       char *wrt_data = older_rv_agg->data;
@@ -731,7 +782,7 @@ bool Transaction<StaticConfig>::insert_version_deferred(const Func& func) {
       older_rv_agg->rts.update(ts_);
       older_rv_agg->wts = ts_;
       assert(__sync_bool_compare_and_swap(&older_rv_agg->status, RowVersionStatus::kDanging,
-                                     RowVersionStatus::kCommitted));
+                                            RowVersionStatus::kCommitted));
 
       if (item->state == RowAccessState::kDelete ||
         item->state == RowAccessState::kReadDelete){
@@ -766,7 +817,7 @@ bool Transaction<StaticConfig>::insert_version_deferred(const Func& func) {
         if (StaticConfig::kReserveAfterAbort)
           reserve(item->tbl, item->cf_id, item->row_id,
                   item->state == RowAccessState::kReadWrite ||
-                      item->state == RowAccessState::kReadDelete, true);
+                           item->state == RowAccessState::kReadDelete, true);
         return false;
       }
       break;
@@ -779,13 +830,31 @@ bool Transaction<StaticConfig>::insert_version_deferred(const Func& func) {
 template <class StaticConfig>
 void Transaction<StaticConfig>::insert_row_deferred() {
   for (auto j = 0; j < iset_size_; j++) {
-    auto i = iset_idx_[j];
+    auto i = iset_idx_[j]; //insert operations
     auto item = &accesses_[i];
 
     if (item->state == RowAccessState::kInvalid) continue;
-
     assert(item->write_rv != nullptr);
+
 #if AGGRESSIVE_INLINING
+      auto access_idx = item->tbl->get_idx_cbtree();
+      auto key = item->primary_key_;
+      void* row_again = nullptr;
+      AggressiveRowHead<StaticConfig> *head_agg;
+      #if BUFFERING
+            //insert row to buffer, pushdown when commit, then need not again
+//          auto ret = access_idx->index_read_buffer_again(this, key, row_again, RD, 0);
+//          if (ret){
+//             assert(true);
+//             head_agg = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_again);
+//             item->write_rv = head_agg->inlined_rv;
+//          }
+      #else
+          auto retrc = access_idx->index_read( key, row_again, RD);
+          assert(retrc == RCOK);
+          head_agg = reinterpret_cast<AggressiveRowHead<StaticConfig> *>(row_again);
+          item->write_rv = head_agg->inlined_rv;
+      #endif
 #else
     item->head->older_rv = item->write_rv;
 #endif
@@ -820,6 +889,7 @@ void Transaction<StaticConfig>::print_version_chain(
   }
   printf("rv=%p\n", rv);
 }
+#endif
 }
 }
 

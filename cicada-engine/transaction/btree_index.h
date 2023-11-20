@@ -5,8 +5,10 @@
 #include "../common.h"
 #include "../util/type_traits.h"
 
+
 namespace mica {
 namespace transaction {
+
 template <class StaticConfig, bool HasValue, class Key,
           class Compare = std::less<Key>>
 class BTreeIndex;
@@ -17,10 +19,8 @@ class BTreeIndexNodeCopier {
  public:
   typedef BTreeIndex<StaticConfig, HasValue, Key, Compare> BTreeIndexT;
   typedef typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::Node Node;
-  typedef typename BTreeIndex<StaticConfig, HasValue, Key,
-                              Compare>::InternalNode InternalNode;
-  typedef typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::LeafNode
-      LeafNode;
+  typedef typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::InternalNode InternalNode;
+  typedef typename BTreeIndex<StaticConfig, HasValue, Key, Compare>::LeafNode LeafNode;
   static constexpr bool kUseIndirection = BTreeIndexT::kUseIndirection;
 
   bool operator()(uint16_t cf_id, RowVersion<StaticConfig>* dest,
@@ -418,6 +418,9 @@ class BTreeIndex {
   template <class RowAccessHandleT>
   static void dump_node(RowAccessHandleT& rah, const Node* node_b);
 };
+
+
+
 }
 }
 

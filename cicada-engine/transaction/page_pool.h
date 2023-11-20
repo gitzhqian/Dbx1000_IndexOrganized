@@ -15,8 +15,7 @@ class PagePool {
 
   static constexpr uint64_t kPageSize = 2 * 1048576;
 
-  PagePool(Alloc* alloc, uint64_t size, uint8_t numa_id)
-      : alloc_(alloc), numa_id_(numa_id) {
+  PagePool(Alloc* alloc, uint64_t size, uint8_t numa_id) : alloc_(alloc), numa_id_(numa_id) {
     uint64_t page_count = (size + kPageSize - 1) / kPageSize;
     size_ = page_count * kPageSize;
 
@@ -32,7 +31,6 @@ class PagePool {
     for (uint64_t i = 0; i < page_count; i++){
        *reinterpret_cast<char**>(pages_ + i * kPageSize) = pages_ + (i + 1) * kPageSize;
     }
-
 
     *reinterpret_cast<char**>(pages_ + (page_count - 1) * kPageSize) = nullptr;
     next_ = pages_;
@@ -75,8 +73,7 @@ class PagePool {
   void print_status() const {
     printf("PagePool on numa node %" PRIu8 "\n", numa_id_);
     printf("  in use: %7.3lf GB\n",
-           static_cast<double>((total_count_ - free_count_) * kPageSize) /
-               1000000000.);
+           static_cast<double>((total_count_ - free_count_) * kPageSize) / 1000000000.);
     printf("  free:   %7.3lf GB\n",
            static_cast<double>(free_count_ * kPageSize) / 1000000000.);
     printf("  total:  %7.3lf GB\n",

@@ -23,9 +23,15 @@ RC TestTxnMan::testReadwrite(int access_num) {
 	itemid_t *item;
 
 	row_t * row_local;
-	rc = index_read(_wl->the_index, 0, row, item , RD, 0);
+#if CC_ALG == MICA
+    rc = index_read(_wl->the_index, 0, row,  RD, 0);
+    assert(rc == RCOK);
+    row_local = get_row(_wl->the_index,  *reinterpret_cast<uint64_t *>(row) , 0,0, WR, row);
+#else
+    rc = index_read(_wl->the_index, 0, row, item , RD, 0);
 	assert(rc == RCOK);
 	row_local = get_row(_wl->the_index,  reinterpret_cast<row_t *>(row) ,item, 0, WR);
+#endif
 	assert(rc == RCOK);
 	if (access_num == 0) {
 		char str[] = "hello";
@@ -66,8 +72,13 @@ TestTxnMan::testConflict(int access_num)
 	row_t * row_local;
 	idx_key_t key;
 	for (key = 0; key < 1; key ++) {
-		rc = index_read(_wl->the_index, 0, row, item, RD, 0);
+#if CC_ALG == MICA
+        rc = index_read(_wl->the_index, 0, row,  RD, 0);
+        row_local = get_row(_wl->the_index,  *reinterpret_cast<uint64_t *>(row) ,  0, 0, WR);
+#else
+        rc = index_read(_wl->the_index, 0, row, item, RD, 0);
 		row_local = get_row(_wl->the_index,  reinterpret_cast<row_t *>(row) ,  item, 0, WR);
+#endif
 		if (row_local) {
 			char str[] = "hello";
 			row_local->set_value(0, 1234);
