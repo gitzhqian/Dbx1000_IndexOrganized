@@ -9,6 +9,7 @@
 #include "index_hash.h"
 #include "index_btree.h"
 #include "index_mica.h"
+#include <random>
 //#include "index_mbtree.h"
 #include "tpcc_const.h"
 #include "mem_alloc.h"
@@ -319,7 +320,7 @@ RC tpcc_txn_man::run_payment(tpcc_query* query) {
   if (!payment_insertHistory(c_id, arg.c_d_id, arg.c_w_id, arg.d_id, arg.w_id,
                              arg.h_date, arg.h_amount, h_data)) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort,[](char* unused){ return true; });
   };
 #endif
 
@@ -363,8 +364,23 @@ void tpcc_txn_man::new_order_incrementNextOrderId(row_t* row,
   row->get_value(D_NEXT_O_ID, o_id);
   // printf("%" PRIi64 "\n", o_id);
   *out_o_id = o_id;
-  o_id++;
+//  o_id++;
+  o_id = o_id;
   row->set_value(D_NEXT_O_ID, o_id);
+}
+void tpcc_txn_man::new_order_incrementNextOrderIdRandom(row_t* row,
+                                                       int64_t o_id) {
+    // UPDATE DISTRICT SET D_NEXT_O_ID = ? WHERE D_ID = ? AND D_W_ID = ?
+    int64_t curr_o_id;
+    row->get_value(D_NEXT_O_ID, curr_o_id);
+    // printf("%" PRIi64 "\n", o_id);
+//    *out_o_id = o_id;
+//  o_id++;
+//    std::default_random_engine rand_gen;
+//    std::uniform_int_distribution<> distrib(0, MAX_TXN_PER_PART);
+//    o_id = o_id + distrib(rand_gen);
+
+    row->set_value(D_NEXT_O_ID, o_id);
 }
 
 row_t* tpcc_txn_man::new_order_getCustomer(uint64_t w_id, uint64_t d_id,
@@ -395,8 +411,11 @@ bool tpcc_txn_man::new_order_createOrder(int64_t o_id, uint64_t d_id,
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_order, row, part_id, row_id, 0)) return false;
-  row->set_primary_key(orderKey(o_id, d_id, w_id));
+  uint64_t primaryKey = orderKey(o_id, d_id, w_id);
+//  printf(" o_id:%lu, d_id:%lu, w_id:%lu, primaryKey:%lu. \n",o_id, d_id, w_id, primaryKey);
+  if (!insert_row(_wl->t_order, row, part_id, row_id, primaryKey)) return false;
+  row->table = _wl->t_order;
+  row->set_primary_key(primaryKey);
   row->set_value(O_ID, o_id);
   row->set_value(O_D_ID, d_id);
   row->set_value(O_W_ID, w_id);
@@ -406,6 +425,8 @@ bool tpcc_txn_man::new_order_createOrder(int64_t o_id, uint64_t d_id,
   row->set_value(O_OL_CNT, ol_cnt);
   row->set_value(O_ALL_LOCAL, all_local ? uint64_t(1) : uint64_t(0));
 
+#if AGGRESSIVE_INLINING
+#else
 #if TPCC_INSERT_INDEX
   // printf("new Order o_id=%" PRId64 "\n", o_id);
   {
@@ -418,6 +439,7 @@ bool tpcc_txn_man::new_order_createOrder(int64_t o_id, uint64_t d_id,
 //    auto key = orderCustKey(o_id, c_id, d_id, w_id);
 //    if (!insert_idx(idx, key, row, part_id)) return false;
   }
+#endif
 #endif
   return true;
 }
@@ -433,12 +455,16 @@ bool tpcc_txn_man::new_order_createNewOrder(int64_t o_id, uint64_t d_id,
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_neworder, row, part_id, row_id, 0)) return false;
-  row->set_primary_key(neworderKey(o_id, d_id, w_id));
+  uint64_t primaryKey = neworderKey(o_id, d_id, w_id);
+  if (!insert_row(_wl->t_neworder, row, part_id, row_id, primaryKey)) return false;
+  row->table = _wl->t_neworder;
+  row->set_primary_key(primaryKey);
   row->set_value(NO_O_ID, o_id);
   row->set_value(NO_D_ID, d_id);
   row->set_value(NO_W_ID, w_id);
 
+#if AGGRESSIVE_INLINING
+#else
 #if TPCC_INSERT_INDEX
   // printf("new NewOrder o_id=%" PRId64 "\n", o_id);
   {
@@ -446,6 +472,7 @@ bool tpcc_txn_man::new_order_createNewOrder(int64_t o_id, uint64_t d_id,
     auto key = neworderKey(o_id, d_id, w_id);
     if (!insert_idx(idx, key, row, part_id)) return false;
   }
+#endif
 #endif
   return true;
 }
@@ -514,8 +541,10 @@ bool tpcc_txn_man::new_order_createOrderLine(
 #endif
   uint64_t row_id;
   auto part_id = wh_to_part(w_id);
-  if (!insert_row(_wl->t_orderline, row, part_id, row_id, 0)) return false;
-  row->set_primary_key(orderlineKey(ol_number, o_id, d_id, w_id));
+  uint64_t primaryKey = orderlineKey(ol_number, o_id, d_id, w_id);
+  if (!insert_row(_wl->t_orderline, row, part_id, row_id, primaryKey)) return false;
+  row->table = _wl->t_orderline;
+  row->set_primary_key(primaryKey);
   row->set_value(OL_O_ID, o_id);
   row->set_value(OL_D_ID, d_id);
   row->set_value(OL_W_ID, w_id);
@@ -527,6 +556,8 @@ bool tpcc_txn_man::new_order_createOrderLine(
   row->set_value(OL_AMOUNT, ol_amount);
   row->set_value(OL_DIST_INFO, const_cast<char*>(ol_dist_info));
 
+#if AGGRESSIVE_INLINING
+#else
 #if TPCC_INSERT_INDEX
   {
     auto idx = _wl->i_orderline;
@@ -538,6 +569,7 @@ bool tpcc_txn_man::new_order_createOrderLine(
     }
   }
 #endif
+#endif
   return true;
 }
 
@@ -546,57 +578,71 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
 
   row_t* items[15];
   assert(arg.ol_cnt <= sizeof(items) / sizeof(items[0]));
+  //1.search item table
   for (uint64_t ol_number = 1; ol_number <= arg.ol_cnt; ol_number++) {
     items[ol_number - 1] = new_order_getItemInfo(arg.items[ol_number - 1].ol_i_id);
     // printf("ol_i_id %d\n", (int)arg.items[ol_number - 1].ol_i_id);
     if (items[ol_number - 1] == NULL) {
 //      assert(false);
       // FAIL_ON_ABORT();
-      return finish(Abort,[](char* unused){ return true; });
+      return finish(Abort, [](char* unused){ return true; });
     };
   }
 
+  //2.search warehouse table
   auto warehouse = new_order_getWarehouseTaxRate(arg.w_id);
   if (warehouse == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort,[](char* unused){ return true; });
+    return finish(Abort, [](char* unused){ return true; });
   };
   // double w_tax;
    double w_tax;
    warehouse->get_value(W_TAX, w_tax);
 
+   //3.search district table
   auto district = new_order_getDistrict(arg.d_id, arg.w_id);
   if (district == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort,[](char* unused){ return true; });
+    return finish(Abort, [](char* unused){ return true; });
   };
   double d_tax;
   district->get_value(D_TAX, d_tax);
 
-  int64_t o_id;
-  new_order_incrementNextOrderId(district, &o_id);
+  //3.1 update district table
+//  int64_t o_id;
+//  new_order_incrementNextOrderId(district, &o_id);
+  uint64_t o_id = arg.next_o_id;
+  new_order_incrementNextOrderIdRandom(district, o_id);
 
+  //4.search customer table
   auto customer = new_order_getCustomer(arg.w_id, arg.d_id, arg.c_id);
   if (customer == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort,[](char* unused){ return true; });
+    return finish(Abort, [](char* unused){ return true; });
   };
-  uint64_t c_discount;
+  double c_discount;
+  double c_balance;
   customer->get_value(C_DISCOUNT, c_discount);
+  customer->get_value(C_BALANCE, c_balance);
 
+  //5.insert order table
+  //6.insert new order table
 #if TPCC_INSERT_ROWS
   uint64_t o_carrier_id = 0;
   if (!new_order_createOrder(o_id, arg.d_id, arg.w_id, arg.c_id, arg.o_entry_d,
                              o_carrier_id, arg.ol_cnt, arg.all_local)) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+//    return finish(Abort, [](char* unused){ return true; });
   };
   if (!new_order_createNewOrder(o_id, arg.d_id, arg.w_id)) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+//    return finish(Abort, [](char* unused){ return true; });
   };
 #endif
 
+  //7.search stock table
+  //8.update stock table
+  //9.insert order line table
   for (uint64_t ol_number = 1; ol_number <= arg.ol_cnt; ol_number++) {
     uint64_t ol_i_id = arg.items[ol_number - 1].ol_i_id;
     uint64_t ol_supply_w_id = arg.items[ol_number - 1].ol_supply_w_id;
@@ -605,7 +651,7 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
     auto stock = new_order_getStockInfo(ol_i_id, ol_supply_w_id);
     if (stock == NULL) {
       FAIL_ON_ABORT();
-      return finish(Abort,[](char* unused){ return true; });
+      return finish(Abort, [](char* unused){ return true; });
     };
     bool remote = ol_supply_w_id != arg.w_id;
     new_order_updateStock(stock, ol_quantity, remote);
@@ -620,11 +666,11 @@ RC tpcc_txn_man::run_new_order(tpcc_query* query) {
                                    ol_supply_w_id, arg.o_entry_d, ol_quantity,
                                    ol_amount, ol_dist_info)) {
       FAIL_ON_ABORT();
-      return finish(Abort);
+//      return finish(Abort, [](char* unused){ return true; });
     };
 #endif
   }
-  return finish(RCOK,[](char* unused){ return true; });
+  return finish(RCOK, [](char* unused){ return true; });
 }
 
 //////////////////////////////////////////////////////
@@ -794,7 +840,7 @@ RC tpcc_txn_man::run_order_status(tpcc_query* query) {
                                                   arg.c_last, &c_id);
   if (customer == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort, [](char* unused){ return true; });
   };
 
   auto order = order_status_getLastOrder(arg.w_id, arg.d_id, c_id);
@@ -804,7 +850,7 @@ RC tpcc_txn_man::run_order_status(tpcc_query* query) {
 
     if (!order_status_getOrderLines(arg.w_id, arg.d_id, o_id)) {
       FAIL_ON_ABORT();
-      return finish(Abort);
+      return finish(Abort, [](char* unused){ return true; });
     };
   }
 #endif
@@ -1040,7 +1086,7 @@ RC tpcc_txn_man::run_delivery(tpcc_query* query) {
       __sync_lock_release(&active_delivery[arg.w_id - 1].lock);
 #endif
       // INC_STATS_ALWAYS(get_thd_id(), debug1, 1);
-      return finish(Abort);
+      return finish(Abort, [](char* unused){ return true; });
     }
     // No new order for this district.
     if (o_id == -1) {
@@ -1054,7 +1100,7 @@ RC tpcc_txn_man::run_delivery(tpcc_query* query) {
       // There is no guarantee that we will see a order row even after seeing a related new_order row in this read-write transaction.
       // printf("oops1\n");
       FAIL_ON_ABORT();
-      return finish(Abort);
+      return finish(Abort, [](char* unused){ return true; });
     }
     uint64_t c_id;
     order->get_value(O_C_ID, c_id);
@@ -1071,7 +1117,7 @@ RC tpcc_txn_man::run_delivery(tpcc_query* query) {
       __sync_lock_release(&active_delivery[arg.w_id - 1].lock);
 #endif
       // INC_STATS_ALWAYS(get_thd_id(), debug2, 1);
-      return finish(Abort);
+      return finish(Abort, [](char* unused){ return true; });
     }
 #else
     ol_total = 1.;
@@ -1084,11 +1130,11 @@ RC tpcc_txn_man::run_delivery(tpcc_query* query) {
       __sync_lock_release(&active_delivery[arg.w_id - 1].lock);
 #endif
       // INC_STATS_ALWAYS(get_thd_id(), debug3, 1);
-      return finish(Abort);
+      return finish(Abort, [](char* unused){ return true; });
     }
   }
 
-  auto rc = finish(RCOK);
+  auto rc = finish(RCOK, [](char* unused){ return true; });
 // if (rc != RCOK) INC_STATS_ALWAYS(get_thd_id(), debug4, 1);
 #ifdef TPCC_DBX1000_SERIAL_DELIVERY
   __sync_lock_release(&active_delivery[arg.w_id - 1].lock);
@@ -1231,7 +1277,7 @@ RC tpcc_txn_man::run_stock_level(tpcc_query* query) {
   auto district = stock_level_getOId(arg.w_id, arg.d_id);
   if (district == NULL) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort, [](char* unused){ return true; });
   }
   int64_t o_id;
   district->get_value(D_NEXT_O_ID, o_id);
@@ -1240,7 +1286,7 @@ RC tpcc_txn_man::run_stock_level(tpcc_query* query) {
   if (!stock_level_getStockCount(arg.w_id, arg.d_id, o_id, arg.w_id,
                                  arg.threshold, &distinct_count)) {
     FAIL_ON_ABORT();
-    return finish(Abort);
+    return finish(Abort, [](char* unused){ return true; });
   }
   (void)distinct_count;
 #endif

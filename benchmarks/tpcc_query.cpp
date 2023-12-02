@@ -6,28 +6,28 @@
 #include "wl.h"
 #include "table.h"
 
-void tpcc_query::init(uint64_t thd_id, workload* h_wl) {
+void tpcc_query::init(uint64_t thd_id, workload* h_wl, uint64_t next_oid) {
   // RNG will use thread-specific states (thd_id) because multiple threads may make a request to the same warehouse.
 
   double x = (double)URand(0, 99, thd_id) / 100.0;
-  part_to_access =
-      (uint64_t*)mem_allocator.alloc(sizeof(uint64_t) * g_part_cnt, thd_id);
+  part_to_access = (uint64_t*)mem_allocator.alloc(sizeof(uint64_t) * g_part_cnt, thd_id);
 #if !TPCC_FULL
   if (x < g_perc_payment)
     gen_payment(thd_id);
   else
     gen_new_order(thd_id);
 #else
-  if (x < 0.04)
-    gen_stock_level(thd_id);
-  else if (x < 0.04 + 0.04)
-    gen_delivery(thd_id);
-  else if (x < 0.04 + 0.04 + 0.04)
-    gen_order_status(thd_id);
-  else if (x < 0.04 + 0.04 + 0.04 + 0.43)
-    gen_payment(thd_id);
-  else
-    gen_new_order(thd_id);
+    gen_new_order(thd_id, next_oid);
+//  if (x < 0.04)
+//    gen_stock_level(thd_id);
+//  else if (x < 0.04 + 0.04)
+//    gen_delivery(thd_id);
+//  else if (x < 0.04 + 0.04 + 0.04)
+//    gen_order_status(thd_id);
+//  else if (x < 0.04 + 0.04 + 0.04 + 0.43)
+//    gen_payment(thd_id);
+//  else
+//    gen_new_order(thd_id);
 #endif
 
 #if WORKLOAD == TPCC && TPCC_SPLIT_DELIVERY
@@ -92,18 +92,17 @@ void tpcc_query::gen_payment(uint64_t thd_id) {
   }
 }
 
-void tpcc_query::gen_new_order(uint64_t thd_id) {
+void tpcc_query::gen_new_order(uint64_t thd_id,   uint64_t next_oid) {
   type = TPCC_NEW_ORDER;
   tpcc_query_new_order& arg = args.new_order;
 
+  arg.next_o_id = next_oid;
   if (FIRST_PART_LOCAL) {
     if (g_num_wh <= g_thread_cnt)
       arg.w_id = thd_id % g_num_wh + 1;
     else {
       do {
-        arg.w_id = RAND((g_num_wh + g_thread_cnt - 1) / g_thread_cnt, thd_id) *
-                       g_thread_cnt +
-                   thd_id + 1;
+        arg.w_id = RAND((g_num_wh + g_thread_cnt - 1) / g_thread_cnt, thd_id) * g_thread_cnt + thd_id + 1;
       } while (arg.w_id > g_num_wh);
       assert((arg.w_id - 1) % g_thread_cnt == thd_id);
     }
@@ -131,6 +130,7 @@ void tpcc_query::gen_new_order(uint64_t thd_id) {
     }
     arg.items[oid].ol_quantity = URand(1, 10, thd_id);
   }
+
   // Remove duplicate items
   for (UInt32 i = 0; i < arg.ol_cnt; i++) {
     for (UInt32 j = 0; j < i; j++) {
@@ -142,9 +142,11 @@ void tpcc_query::gen_new_order(uint64_t thd_id) {
       }
     }
   }
+
   for (UInt32 i = 0; i < arg.ol_cnt; i++)
     for (UInt32 j = 0; j < i; j++)
       assert(arg.items[i].ol_i_id != arg.items[j].ol_i_id);
+
   // update part_to_access
   for (UInt32 i = 0; i < arg.ol_cnt; i++) {
     UInt32 j;

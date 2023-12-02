@@ -10,7 +10,7 @@
 #if CC_ALG == HEKATON
 
 void Row_hekaton::init(row_t * row) {
-	_his_len = 40;
+	_his_len = 10;
 
     tuple_size = row->get_table()->get_schema()->get_tuple_size();
 

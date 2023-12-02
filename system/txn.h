@@ -3,6 +3,7 @@
 #include "global.h"
 #include "helper.h"
 #include <unordered_map>
+#include <atomic>
 #include "manager.h"
 #include "row_hekaton.h"
 #include "row.h"
@@ -157,7 +158,7 @@ public:
 	uint64_t 		start_ts;
 	uint64_t 		end_ts;
 	// following are public for OCC
-	int 			row_cnt;
+	std::atomic<int>   row_cnt;
 	int	 			wr_cnt;
 	Access **		accesses;
 	int 			num_accesses_alloc;
@@ -337,11 +338,11 @@ private:
 
         #if AGGRESSIVE_INLINING
             if (accesses[rid]->type == INS){
-                #if BUFFERING == false
-				  rc = read_index_again(rid);//insert row to buffer, pushdown when commit
-			    #endif
+//                #if BUFFERING == false
+//				  rc = read_index_again(rid);
+//			    #endif
                 row_t * row = accesses[rid]->data;
-                row->manager->set_ts(commit_ts);
+                row->end = commit_ts;
                 continue;
             }
 

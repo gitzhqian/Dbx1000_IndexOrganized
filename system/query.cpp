@@ -18,11 +18,22 @@ Query_queue::init(workload * h_wl) {
 	all_queries = new Query_thd * [g_thread_cnt];
 	_wl = h_wl;
 	_next_tid = 0;
+	next_oid = 0;
 
 #if WORKLOAD == YCSB
 	ycsb_query::calculateDenom();
 #elif WORKLOAD == TPCC
 	assert(tpcc_buffer != NULL);
+    //generate next o_id for district table
+//    std::vector<uint64_t> random_insert_oids;
+    uint64_t thread_insert_oids = 1000*100;
+//    uint64_t init_oid = 3001;
+//    uint64_t start_oid = init_oid + thread_insert_oids;
+//    uint64_t end_oid = init_oid + (thread_id+1)*thread_insert_oids;
+    for (uint64_t i = 0; i < thread_insert_oids; ++i) {
+        random_insert_oids[i] = i+3001;
+    }
+    std::random_shuffle(random_insert_oids.begin(), random_insert_oids.end());
 #elif WORKLOAD == TATP
 	// TATP shares tpcc_buffer with TPCC
 	assert(tpcc_buffer != NULL);
@@ -38,12 +49,13 @@ Query_queue::init(workload * h_wl) {
 	}
 	int64_t end = get_server_clock();
 	printf("Query Queue Init Time %f\n", 1.0 * (end - begin) / 1000000000UL);
+
 }
 
 void
 Query_queue::init_per_thread(int thread_id) {
 	all_queries[thread_id] = (Query_thd *) mem_allocator.alloc(sizeof(Query_thd), thread_id);
-	all_queries[thread_id]->init(_wl, thread_id);
+	all_queries[thread_id]->init(_wl, thread_id, random_insert_oids, next_oid);
 }
 
 base_query *
@@ -73,7 +85,7 @@ void *Query_queue::threadInitQuery(void * This) {
 //     class Query_thd
 /*************************************************/
 
-void Query_thd::init(workload * h_wl, int thread_id) {
+void Query_thd::init(workload * h_wl, int thread_id, std::array<uint64_t, 1000*100> &insert_oids,  uint64_t  next_oid) {
 	uint64_t request_cnt;
 	q_idx = 0;
 	// request_cnt = WARMUP / g_thread_cnt + MAX_TXN_PER_PART + 4;
@@ -90,9 +102,9 @@ void Query_thd::init(workload * h_wl, int thread_id) {
         uint64_t table_size_ = g_synth_table_size / g_virtual_part_cnt;
         uint64_t start_key = table_size_ + thread_id*thread_insert_keys;
         uint64_t end_key = table_size_ + (thread_id+1)*thread_insert_keys;
-        for (int i = start_key; i < end_key; ++i)
+        for (uint64_t i = start_key; i < end_key; ++i)
         {
-            random_insert_keys.push_back(i + 1);
+            random_insert_keys.push_back(i  +1);
         }
         //random the insert keys
         std::random_shuffle(random_insert_keys.begin(), random_insert_keys.end());
@@ -101,6 +113,8 @@ void Query_thd::init(workload * h_wl, int thread_id) {
 
 #elif WORKLOAD == TPCC
 	queries = (tpcc_query *) mem_allocator.alloc(sizeof(tpcc_query) * request_cnt, thread_id);
+
+
 #elif WORKLOAD == TATP
 	queries = (tatp_query *) mem_allocator.alloc(sizeof(tatp_query) * request_cnt, thread_id);
 #else
@@ -114,7 +128,9 @@ void Query_thd::init(workload * h_wl, int thread_id) {
 //		queries[qid].init(thread_id, h_wl, this, random_insert_keys, idx_inst);
 #elif WORKLOAD == TPCC
 		new(&queries[qid]) tpcc_query();
-		queries[qid].init(thread_id, h_wl);
+        next_oid++;
+		uint64_t nexto_id = insert_oids[next_oid];
+		queries[qid].init(thread_id, h_wl, nexto_id);
 #elif WORKLOAD == TATP
 		new(&queries[qid]) tatp_query();
 		queries[qid].init(thread_id, h_wl);

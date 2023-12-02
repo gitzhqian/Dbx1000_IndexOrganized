@@ -4,12 +4,12 @@
 #include <global.h>
 
 
-#ifdef USE_INLINED_DATA
+//#if USE_INLINED_DATA
 class row_t;
 #include "row_lock.h"
 #include "row_tictoc.h"
 #include "row_silo.h"
-#endif
+//#endif
 #include "row_hekaton.h"
 
 #define DECL_SET_VALUE(type) \
@@ -136,6 +136,10 @@ private:
 public:
     table_t * table;
 	volatile uint8_t  is_deleted;
+    uint64_t 		    _primary_key;
+    uint64_t		    _part_id;
+    uint64_t 		    _row_id;
+    volatile uint8_t    is_updated;
     #if CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE
         #if defined(USE_INLINED_DATA)
             Row_lock manager[1];
@@ -157,7 +161,7 @@ public:
             Row_tictoc * manager;
             #endif
     #elif CC_ALG == SILO
-        #if defined(USE_INLINED_DATA)
+            #if  USE_INLINED_DATA
             Row_silo manager[1];
             #else
             Row_silo * manager;
@@ -165,31 +169,29 @@ public:
     #elif CC_ALG == VLL
         Row_vll * manager;
     #endif
-    uint64_t 		_primary_key;
-    uint64_t		_part_id;
-    uint64_t 		_row_id;
-#if AGGRESSIVE_INLINING && CC_ALG != MICA
-	volatile uint8_t is_updated;
-    row_t  *next_row; // for the same key
-    bool   begin_txn;
-    bool   end_txn;
-    ts_t   begin;
-    ts_t   end;
-    char   data[0];
-#else
-    #if !TPCC_CF
-	   char * data;
+    #if  USE_INLINED_DATA && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+        char data[0] ;
     #else
-       char * cf_data[4];
+        #if AGGRESSIVE_INLINING
+          #if  CC_ALG == HEKATON
+            row_t  *next_row; // for the same key
+            bool   begin_txn;
+            bool   end_txn;
+            ts_t   begin;
+            ts_t   end;
+          #endif
+            char   data[0];
+        #else
+            #if !TPCC_CF
+               char * data;
+            #else
+               char * cf_data[4];
+            #endif
+        #endif
     #endif
-#endif
 
 	void set_part_id(uint64_t part_id) { _part_id = part_id; }
 	void set_row_id(uint64_t row_id) { _row_id = row_id; }
 
-#if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
-	char data[0] __attribute__((aligned(8)));
-#else
 
-#endif
 };

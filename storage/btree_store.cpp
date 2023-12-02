@@ -14,11 +14,10 @@ bool BaseNode::Freeze() {
     if (expected.IsFrozen()) {
         return false;
     }
-    auto ret =  ATOM_CAS(this->GetHeader()->status.word,
+    auto ret =  ATOM_CAS(GetHeader()->status.word,
                          (expected.word),
                          expected.Freeze().word);
 
-    assert(ret);
     return ret;
 }
 
@@ -27,7 +26,7 @@ bool BaseNode::UnFreeze() {
     if (!expected.IsFrozen()) {
         return false;
     }
-    auto ret =  ATOM_CAS(this->GetHeader()->status.word,
+    auto ret =  ATOM_CAS(GetHeader()->status.word,
                          (expected.word),
                          expected.UnFreeze().word);
 
@@ -38,7 +37,7 @@ bool BaseNode::UnFreeze() {
 //==========================================================
 //-------------------------InnernalNode
 //==========================================================
-InternalNode::InternalNode(uint32_t node_size, char * key,
+InternalNode::InternalNode(uint32_t node_size, const char * key,
                            const uint32_t key_size, uint64_t left_child_addr,
                            uint64_t right_child_addr)
         : BaseNode(false, node_size) {
@@ -66,12 +65,11 @@ InternalNode::InternalNode(uint32_t node_size, char * key,
 
     assert((uint64_t) ptr == (uint64_t) this + sizeof(*this) + 2 * sizeof(row_m));
 
-    COMPILER_BARRIER;
 }
 
 InternalNode::InternalNode(uint32_t node_size, InternalNode *src_node,
                            uint32_t begin_meta_idx, uint32_t nr_records,
-                           char * key, const uint32_t key_size,
+                           const char * key, const uint32_t key_size,
                            uint64_t left_child_addr, uint64_t right_child_addr,
                            uint64_t left_most_child_addr, uint32_t value_size)
         : BaseNode(false, node_size) {
@@ -183,7 +181,6 @@ InternalNode::InternalNode(uint32_t node_size, InternalNode *src_node,
     }
 
 
-    COMPILER_BARRIER;
     header.size = node_size;
     header.sorted_count = insert_idx;
 
@@ -193,17 +190,17 @@ void InternalNode::InternalNodeUpdates(StdMapp::iterator src_ben, StdMapp::itera
 }
 // Insert record to this internal node. The node is frozen at this time.
 bool InternalNode::PrepareForSplit(
-        Stack &stack, uint32_t split_threshold, char * key, uint32_t key_size,
-        uint64_t left_child_addr,    // [key]'s left child pointer
-        uint64_t right_child_addr,   // [key]'s right child pointer
-        InternalNode **new_node, bool backoff ) {
+                    Stack &stack, uint32_t split_threshold, const char * key, uint32_t key_size,
+                    uint64_t left_child_addr,    // [key]'s left child pointer
+                    uint64_t right_child_addr,   // [key]'s right child pointer
+                    InternalNode **new_node, bool backoff) {
     uint32_t data_size = header.size ;
     data_size = data_size + key_size + sizeof(right_child_addr);
     data_size = data_size + sizeof(row_m);
 
     uint32_t new_node_size = sizeof(InternalNode) + data_size;
     if (new_node_size < split_threshold) {
-        InternalNode::New(this, key, key_size, left_child_addr, right_child_addr, new_node );
+        InternalNode::New(this, key, key_size, left_child_addr, right_child_addr, new_node);
 #if AGGRESSIVE_INLINING
 #if BUFFERING
         if (this->update_messages->size()>0){
@@ -213,14 +210,14 @@ bool InternalNode::PrepareForSplit(
         }
 #endif
 #endif
-        assert(this->IsFrozen());
-        this->UnFreeze();
+        assert(IsFrozen());
+        UnFreeze();
         return true;
     }
 
-    // After adding a key and pointers the new node would be too large. This
-    // means we are effectively 'moving up' the tree to do split
-    // So now we split the node and generate two new internal nodes
+    // After adding a key and pointers the new node would be too large.
+    // This means we are effectively 'moving up' the tree to do split
+    // So now we split the node and generate two new internal nodes.
     M_ASSERT(header.sorted_count >= 2, "header.sorted_count >= 2.");
     uint32_t n_left = header.sorted_count >> 1;
 
@@ -229,7 +226,6 @@ bool InternalNode::PrepareForSplit(
     InternalNode **ptr_l = reinterpret_cast<InternalNode **>(&l_pt);
     InternalNode **ptr_r = reinterpret_cast<InternalNode **>(&r_pt);
 
-    // Figure out where the new key will go
     auto separator_meta = row_meta[n_left];
     char *separator_key = nullptr;
     uint32_t separator_key_size = separator_meta.GetKeyLength();
@@ -241,6 +237,10 @@ bool InternalNode::PrepareForSplit(
 
 //    printf("separator_key, key, %lu, %lu, \n", *reinterpret_cast<uint64_t *>(separator_key),
 //                *reinterpret_cast<uint64_t *>(key));
+
+    if (separator_payload == 0){
+        printf("separator_payload =0. \n");
+    }
 
     if (cmp == 0) {
         cmp = key_size - separator_key_size;
@@ -254,7 +254,8 @@ bool InternalNode::PrepareForSplit(
     StdMapp::iterator upt_end2;
     if (upt_sz >0){
         upt_ben = upt_messgs->begin();
-        upt_end1 = upt_messgs->find(n_left);
+        upt_end1 = upt_messgs->begin();
+        std::advance(upt_end1, upt_sz / 2);
         upt_end2 = upt_messgs->end();
     }
 #endif
@@ -289,20 +290,17 @@ bool InternalNode::PrepareForSplit(
     assert(*ptr_l);
     assert(*ptr_r);
 
-    uint64_t node_l = reinterpret_cast<uint64_t>(*ptr_l);
-    uint64_t node_r = reinterpret_cast<uint64_t>(*ptr_r);
+    auto node_l = reinterpret_cast<uint64_t>(*ptr_l);
+    auto node_r = reinterpret_cast<uint64_t>(*ptr_r);
 
     // Pop here as if this were a leaf node so that when we get back to the
     // original caller, we get stack top as the "parent"
     stack.Pop();
 
     // Now get this internal node's real parent
-    auto stack_node = stack.Top() ? stack.Top()->node : nullptr;
-    InternalNode *parent = reinterpret_cast<InternalNode *>(stack_node);
+    InternalNode *parent = stack.Top() ? stack.Top()->node : nullptr;
     if (parent == nullptr) {
-        // Good!
-        InternalNode::New( separator_key , separator_key_size,
-                           (uint64_t) node_l, (uint64_t) node_r, new_node );
+        InternalNode::New(separator_key, separator_key_size, (uint64_t) node_l, (uint64_t) node_r, new_node);
 #if BUFFERING
         if (this->update_messages->size()>0){
             auto upt_ben = this->update_messages->begin();
@@ -313,14 +311,17 @@ bool InternalNode::PrepareForSplit(
         return true;
     }
 
-    __builtin_prefetch((const void *) (parent), 0, 1);
+    __builtin_prefetch((const void *) (parent), 0, 2);
 
     // Try to freeze the parent node first
-    thread_local bool frozen_by_me = false;
-    while (parent->IsFrozen())
-        PAUSE
+    bool frozen_by_me = false;
+    while (!parent->IsFrozen()) {
+        frozen_by_me = parent->Freeze();
+    }
 
-    frozen_by_me = parent->Freeze();
+//    while (parent->IsFrozen())
+//        PAUSE
+//    frozen_by_me = parent->Freeze();
     // Someone else froze the parent node and we are told not to compete with
     // others (for now)
     if (!frozen_by_me && backoff) {
@@ -338,11 +339,12 @@ uint32_t InternalNode::GetChildIndex(const char *key, uint32_t key_size, bool ge
     // Keys in internal nodes are always sorted, visible
     int32_t left = 0, right = header.sorted_count - 1, mid = 0;
 //    char *key_ = reinterpret_cast<char *>(&key);
+    assert(!IsLeaf());
 
     //binary search
     while (true) {
         mid = (left + right) / 2;
-        auto meta = this->row_meta[mid];
+        auto meta = row_meta[mid];
         char *record_key = nullptr;
         GetRawRow(meta, nullptr, &record_key, nullptr);
 
@@ -370,14 +372,13 @@ uint32_t InternalNode::GetChildIndex(const char *key, uint32_t key_size, bool ge
         }
     }
 }
-ReturnCode InternalNode::Update(row_m meta, InternalNode *old_child, InternalNode *new_child ){
+ReturnCode InternalNode::Update(row_m meta, InternalNode *old_child, InternalNode *new_child){
     auto status = header.GetStatus();
 //    if (status.IsFrozen()) {
 //        return ReturnCode::NodeFrozen();
 //    }
 
-    bool ret_header = ATOM_CAS(this->header.status.word,
-                                status.word, status.word);
+    bool ret_header = ATOM_CAS(header.status.word,status.word, status.word);
 
     uint64_t old_ = reinterpret_cast<uint64_t> (old_child);
     uint64_t new_ = reinterpret_cast<uint64_t> (new_child);
@@ -402,13 +403,11 @@ void LeafNode::New(LeafNode **mem, uint32_t node_size ) {
 
     memset(*mem, 0, node_size);
     new(*mem) LeafNode(node_size);
-    COMPILER_BARRIER;
 
-//    (*mem)->update_messages = new MessagesVec();
     (*mem)->update_messages = new StdMapp();
 }
 
-ReturnCode LeafNode::SearchRowMeta(char * key, uint32_t key_size, row_m **out_metadata_ptr,
+ReturnCode LeafNode::SearchRowMeta(const char * key, uint32_t key_size, row_m **out_metadata_ptr,
                                    uint32_t start_pos, uint32_t end_pos, bool check_concurrency) {
     ReturnCode rc = ReturnCode::NotFound();
 //    char *key_ = reinterpret_cast<char *>(&key);
@@ -457,14 +456,13 @@ ReturnCode LeafNode::SearchRowMeta(char * key, uint32_t key_size, row_m **out_me
     return rc;
 }
 
-ReturnCode LeafNode::Insert(char * key, uint32_t key_size,
-                            row_t *&payload, uint32_t payload_size,
-                            uint32_t split_threshold) {
+ReturnCode LeafNode::Insert(const char * key, uint32_t key_size,
+                            row_t *&payload, uint32_t payload_size, uint32_t split_threshold) {
     //1.frozee the location/offset
     //2.copy record to the location
     ReturnCode rc=ReturnCode::Ok();
 
-    NodeHeader::StatusWord expected_status = this->header.GetStatus();
+    NodeHeader::StatusWord expected_status = header.GetStatus();
     assert(expected_status.IsFrozen());
 
     Uniqueness uniqueness = CheckUnique(key, key_size);
@@ -476,7 +474,7 @@ ReturnCode LeafNode::Insert(char * key, uint32_t key_size,
     uint32_t used_space = LeafNode::GetUsedSpace(expected_status);
     uint32_t row_m_sz = sizeof(row_m);
     uint32_t new_size;
-    new_size = used_space + row_m_sz +key_size + payload_size;
+    new_size = used_space +row_m_sz +key_size +payload_size;
 
 //    LOG_DEBUG("LeafNode::GetUsedSpace: %u.",  new_size);
     if (new_size >= split_threshold) {
@@ -487,9 +485,12 @@ ReturnCode LeafNode::Insert(char * key, uint32_t key_size,
     uint32_t total_size;
     total_size = key_size + payload_size;
     desired_status.PrepareForInsert(total_size);
-    auto ret = ATOM_CAS(this->header.status.word,expected_status.word, desired_status.word);
-    assert(ret);
-    this->header.sorted_count++;
+    auto ret = ATOM_CAS(header.status.word,expected_status.word, desired_status.word);
+//    assert(ret);
+    if (!ret){
+        return ReturnCode::CASFailure();
+    }
+    header.sorted_count++;
 
     auto insert_index = GetFirstGreater(key);
     row_m *row_meta_ptr = &row_meta[insert_index];
@@ -502,7 +503,8 @@ ReturnCode LeafNode::Insert(char * key, uint32_t key_size,
     ret = ATOM_CAS(row_meta_ptr->meta,expected_meta.meta, desired_meta.meta);
     assert(ret);
 
-    uint64_t offset = header.size - desired_status.GetBlockSize();
+    auto block_size = desired_status.GetBlockSize();
+    auto offset = header.size - block_size;
     char *data_ptr = &(reinterpret_cast<char *>(this))[offset];
     std::memcpy(data_ptr, key, key_size);
 
@@ -528,21 +530,20 @@ ReturnCode LeafNode::Insert(char * key, uint32_t key_size,
     ret = ATOM_CAS(row_meta_ptr->meta,desired_meta.meta, new_meta.meta);
     assert(ret);
 
-
-    COMPILER_BARRIER;
     payload = reinterpret_cast<row_t *>(data_ptr + key_size);
 //    printf("insert k1:%lu \n.", *reinterpret_cast<uint64_t *>(data_ptr));
     return rc;
 }
+
 #if AGGRESSIVE_INLINING
-ReturnCode LeafNode::Insert_append(char * key, uint32_t key_size,
+ReturnCode LeafNode::Insert_append(const char * key, uint32_t key_size,
                             row_t *&payload, uint32_t payload_size,
                             uint32_t split_threshold) {
     //1.frozee the location/offset
     //2.copy record to the location
     ReturnCode rc=ReturnCode::Ok();
 
-    NodeHeader::StatusWord expected_status = this->header.GetStatus();
+    NodeHeader::StatusWord expected_status = header.GetStatus();
 
     Uniqueness uniqueness = CheckUnique(key, key_size);
     if (uniqueness == Duplicate) {
@@ -563,8 +564,11 @@ ReturnCode LeafNode::Insert_append(char * key, uint32_t key_size,
     uint32_t total_size;
     total_size = key_size + payload_size;
     desired_status.PrepareForInsert(total_size);
-    auto ret = ATOM_CAS(this->header.status.word,expected_status.word, desired_status.word);
-    assert(ret);
+    auto ret = ATOM_CAS(header.status.word,expected_status.word, desired_status.word);
+//    assert(ret);
+    if (!ret){
+        return ReturnCode::CASFailure();
+    }
 
     auto expected_status_record_count = expected_status.GetRecordCount();
     row_m *row_meta_ptr = &row_meta[expected_status_record_count];
@@ -575,7 +579,8 @@ ReturnCode LeafNode::Insert_append(char * key, uint32_t key_size,
     ret = ATOM_CAS(row_meta_ptr->meta,expected_meta.meta, desired_meta.meta);
     assert(ret);
 
-    uint64_t offset = header.size - desired_status.GetBlockSize();
+    auto block_size = desired_status.GetBlockSize();
+    auto offset = header.size - block_size;
     char *data_ptr = &(reinterpret_cast<char *>(this))[offset];
     std::memcpy(data_ptr, key, key_size);
     if (payload == nullptr){
@@ -589,13 +594,12 @@ ReturnCode LeafNode::Insert_append(char * key, uint32_t key_size,
     ret = ATOM_CAS(row_meta_ptr->meta,desired_meta.meta, new_meta.meta);
     assert(ret);
 
-    COMPILER_BARRIER;
     payload = reinterpret_cast<row_t *>(data_ptr + key_size);
 //    printf("insert k1:%lu \n.", *reinterpret_cast<uint64_t *>(data_ptr));
     return rc;
 }
 #endif
-uint32_t LeafNode::GetFirstGreater(char *key){
+uint32_t LeafNode::GetFirstGreater(const char *key){
     assert(header.status.IsFrozen());
     uint32_t total_len = 0;
     uint32_t count = header.GetStatus().GetRecordCount();
@@ -624,9 +628,9 @@ uint32_t LeafNode::GetFirstGreater(char *key){
         auto mvfrom_offset = count-1-i;
         auto mvto_offset = count-1-i+1;
 
-        auto pre_meta = row_meta[mvfrom_offset];
+        auto pre_meta  = row_meta[mvfrom_offset];
         auto dest_meta = &row_meta[mvto_offset];
-        char *pre_ptr = &(reinterpret_cast<char *>(this))[mvfrom_offset];
+        char *pre_ptr  = &(reinterpret_cast<char *>(this))[mvfrom_offset];
         char *dest_ptr = &(reinterpret_cast<char *>(this))[mvto_offset];
 
 
@@ -646,7 +650,8 @@ uint32_t LeafNode::GetFirstGreater(char *key){
 RC LeafNode::Read(idx_key_t key, uint32_t key_size, row_m **row_meta) {
     ReturnCode rc;
 
-    rc = SearchRowMeta(reinterpret_cast<char *>(&key), key_size, row_meta, 0, (uint32_t)-1, false);
+    rc = SearchRowMeta(reinterpret_cast<char *>(&key), key_size, row_meta, 0, (uint32_t)-1,
+                       false);
 
     if (rc.IsNotFound()) {
         return RC::ERROR;
@@ -693,7 +698,7 @@ ReturnCode LeafNode::RangeScanBySize(const char * key1, uint32_t key1_size,
     return ReturnCode::Ok();
 }
 */
-LeafNode::Uniqueness LeafNode::CheckUnique(char * key, uint32_t key_size) {
+LeafNode::Uniqueness LeafNode::CheckUnique(const char * key, uint32_t key_size) {
 //    char *key_ = reinterpret_cast<char *>(&key);
     row_m *row_meta = nullptr;
     ReturnCode rc = SearchRowMeta(key, key_size, &row_meta);
@@ -702,6 +707,7 @@ LeafNode::Uniqueness LeafNode::CheckUnique(char * key, uint32_t key_size) {
     }
 
     if(row_meta->IsInserting()) {
+        printf("is inserting. \n ");
         return ReCheck;
     }
 
@@ -711,6 +717,8 @@ LeafNode::Uniqueness LeafNode::CheckUnique(char * key, uint32_t key_size) {
     curr_key = GetKey(*row_meta);
 
     if (KeyCompare(key, key_size, curr_key, key_size) == 0) {
+//        char *k11 = const_cast<char *>(key);
+//        printf("Duplicate. k1: %lu k2: %lu. \n ", *reinterpret_cast<uint64_t *>(k11), *reinterpret_cast<uint64_t *>(curr_key));
         return Duplicate;
     }
 
@@ -805,7 +813,7 @@ void LeafNode::CopyFrom(LeafNode *node, std::vector<row_m>::iterator begin_it,
                         std::vector<row_m>::iterator end_it,
                         std::vector<std::pair<uint64_t, message_upt>> *conflicts) {
     assert(node->IsFrozen());
-    uint32_t offset = this->header.size;
+    uint32_t offset = header.size;
     uint32_t nrecords = 0;
     for (auto it = begin_it; it != end_it; ++it) {
         auto row_meta_ = *it;
@@ -847,7 +855,7 @@ void LeafNode::CopyFrom(LeafNode *node, std::vector<row_m>::iterator begin_it,
     }
 
     // Finalize header stats
-    header.status.SetBlockSize(this->header.size - offset);
+    header.status.SetBlockSize(header.size - offset);
     header.status.SetRecordCount(nrecords);
     header.sorted_count = nrecords;
 }
@@ -859,10 +867,10 @@ bool LeafNode::PrepareForSplit(Stack &stack,
                                InternalNode **new_parent, bool backoff,
                                std::vector<std::pair<uint64_t, message_upt>> *conflicts) {
     assert(key_size<=8);
-    if (!this->header.status.IsFrozen()){
+    if (!header.status.IsFrozen()){
         return false;
     }
-    if(this->header.GetStatus().GetRecordCount() < 3){
+    if(header.GetStatus().GetRecordCount() < 3){
         return false;
     }
 
@@ -870,10 +878,10 @@ bool LeafNode::PrepareForSplit(Stack &stack,
     uint32_t total_size = 0;
     uint32_t nleft = 0;
     // Prepare new nodes: a parent node, a left leaf and a right leaf
-    LeafNode::New(left, this->header.size );
-    LeafNode::New(right, this->header.size );
+    LeafNode::New(left, header.size );
+    LeafNode::New(right, header.size );
     uint32_t totalSize = key_size + payload_size;
-    uint32_t count = this->header.GetStatus().GetRecordCount();
+    uint32_t count = header.GetStatus().GetRecordCount();
     if(count <3) return false;
 
     meta_vec.clear();
@@ -894,9 +902,9 @@ bool LeafNode::PrepareForSplit(Stack &stack,
     auto node_left = *left;
     auto node_right = *right;
 
-    if (!this->IsFrozen()) return false;
+    if (!IsFrozen()) return false;
     (*left)->CopyFrom(this, meta_vec.begin(), left_end_it , conflicts);
-    (*right)->CopyFrom(this, left_end_it, meta_vec.end(), conflicts );
+    (*right)->CopyFrom(this, left_end_it, meta_vec.end(), conflicts);
 
     row_m separator_meta = meta_vec.at(nleft - 1);
     uint32_t separator_key_size = separator_meta.GetKeyLength();
@@ -921,11 +929,11 @@ bool LeafNode::PrepareForSplit(Stack &stack,
         return true;
     }
 
-    thread_local bool frozen_by_me = false;
-    while (parent->IsFrozen())
-        PAUSE
+    bool frozen_by_me = false;
+    while (!parent->IsFrozen()){
+        frozen_by_me = parent->Freeze();
+    }
 
-    frozen_by_me = parent->Freeze();
     if (!frozen_by_me && backoff) {
         return false;
     } else {
@@ -944,15 +952,16 @@ bool LeafNode::PrepareForSplit(Stack &stack,
 //-------------------------BTree store
 //==========================================================
 void IndexBtree::Init(ParameterSet param, uint32_t key_size, table_t *table_ )  {
-    this->parameters = param;
-    this->table = table_;
-    this->table->add_table_index(this);
+    parameters = param;
+    table = table_;
+    table->add_table_index(this);
 
 //    root = reinterpret_cast<BaseNode *>(leaf_node_pool->Get(0));
     root = reinterpret_cast<BaseNode *>(mem_allocator.alloc(sizeof(parameters.leaf_node_size), -1));
     LeafNode **root_node = reinterpret_cast<LeafNode **>(&root);
     LeafNode::New(root_node, parameters.leaf_node_size );
 }
+
 #if AGGRESSIVE_INLINING
 RC IndexBtree::TraverseToTarget(txn_man* txn, Stack *stack, idx_key_t key,
                                        uint32_t key_size, message_upt ** messge_upt,
@@ -976,7 +985,9 @@ RC IndexBtree::TraverseToTarget(txn_man* txn, Stack *stack, idx_key_t key,
         auto buffer_ = parent->update_messages;
         if (!buffer_->empty()){
 //            printf("inner node buffer size: %lu. \n", buffer_->size());
-            auto fin = buffer_->find(key);
+//            auto fin = buffer_->find(key);
+//            MyKey ky{reinterpret_cast<char *>(&key), sizeof(idx_key_t)};
+            auto fin = buffer_->find(std::to_string(key));
             if (fin != buffer_->end()){
                 auto mess = fin->second;
                 *messge_upt = &mess;
@@ -996,11 +1007,13 @@ RC IndexBtree::TraverseToTarget(txn_man* txn, Stack *stack, idx_key_t key,
     return RC::RCOK;
 }
 #endif
+
 LeafNode *IndexBtree::TraverseToLeaf(Stack *stack, const char * key,
                                        uint32_t key_size, bool le_child) {
     static const uint32_t kCacheLineSize = 64;
-    BaseNode *node = GetRootNodeSafe();
-    __builtin_prefetch((const void *) (root), 0, 1);
+    BaseNode *node = nullptr;
+    node = GetRootNodeSafe();
+    __builtin_prefetch((const void *)(root), 0, 3);
 
     if (stack) {
         stack->SetRoot(node);
@@ -1010,27 +1023,37 @@ LeafNode *IndexBtree::TraverseToLeaf(Stack *stack, const char * key,
     assert(node);
     while (!node->IsLeaf()) {
         parent = reinterpret_cast<InternalNode *>(node);
-        //binary search in inner node
         meta_index = parent->GetChildIndex(key, key_size, le_child);
         node = parent->GetChildByMetaIndex(meta_index);
-//        for (uint32_t i = 0; i < node->header.size / kCacheLineSize; ++i) {
-//            __builtin_prefetch((const void *)((char *)node + i * kCacheLineSize), 0, 1);
-//        }
+//        assert(node);
         if (node == nullptr){
             return nullptr;
         }
-        assert(node);
-        if(stack != nullptr){
+        if (stack != nullptr) {
             stack->Push(parent, meta_index);
         }
     }
 
-//    for (uint32_t i = 0; i < parameters.leaf_node_size / kCacheLineSize; ++i) {
-//        __builtin_prefetch((const void *)((char *)node + i * kCacheLineSize), 0, 3);
-//    }
     return reinterpret_cast<LeafNode *>(node);
 }
+/**
+ * when multi threads, if sh down recursionly
+ * then it will incur the mutual wait lcok(frozon)
+ * then use the tbb::concurent_map, not the std::map
+ * @param node_i
+ * @param node_l
+ * @return
+ */
 bool IndexBtree::ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l ){
+//    printf("node i buffer size: %lu. \n", node_i->update_messages->size());
+//    while (node_i->IsFrozen())
+//        PAUSE
+
+    auto ret = node_i->Freeze();
+    if(!ret){
+        return false;
+    }
+
     auto sz = node_i->header.sorted_count;
     if (sz <=0 || node_i->update_messages->size() <= MESSAGE_COUNT){
         node_i->UnFreeze();
@@ -1044,11 +1067,12 @@ bool IndexBtree::ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l ){
         return false;
     }
     uint32_t max_size = 0;
+    uint32_t dist=0;
     uint64_t child = 0;
-    auto itrb = upt_messages->begin();
-    auto itre = upt_messages->end();
-    uint64_t key_1 = 0;
-    uint64_t key_2 = 0;
+//    std::string itrb_k;
+//    std::string itre_k;
+    auto itrb_k = upt_messages->begin();
+    auto itre_k = upt_messages->end();
     auto itr1 = upt_messages->begin();
     auto itr2 = upt_messages->end();
     for (int i = 0; i < sz; ++i) {
@@ -1060,8 +1084,8 @@ bool IndexBtree::ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l ){
         if (m_key == nullptr){
             itr1 = upt_messages->begin();
         } else{
-            key_1 = *reinterpret_cast<uint64_t *>(m_key);
-            itr1 = upt_messages->lower_bound(key_1);
+            string str = m_key;
+            itr1 = upt_messages->lower_bound(str);
         }
 
         if ((i+1) >= sz){
@@ -1070,19 +1094,26 @@ bool IndexBtree::ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l ){
             auto next_meta = node_i->row_meta[i+1];
             char *m_key2 = nullptr;
             node_i->GetRawRow(next_meta, nullptr, &m_key2, nullptr);
-            key_2 = *reinterpret_cast<uint64_t *>(m_key2);
-            itr2 = upt_messages->lower_bound(key_2);
+            string str2 = m_key2;
+            itr2 = upt_messages->lower_bound(str2);
         }
 
-        auto dist = distance(itr1, itr2);
+        auto dist1 = distance(upt_messages->begin(), itr1);
+        auto dist2 = distance(upt_messages->begin(), itr2);
+        if (dist1 > dist2){
+            continue;
+//            dist = distance(itr2, itr1);
+        }else{
+            dist = distance(itr1, itr2);
+        }
+//        dist = distance(itr1, itr2);
         if (dist > max_size){
-            itrb = itr1;
-            itre = itr2;
+            itrb_k = itr1 ;
+            itre_k = itr2;
             child = m_payload;
             max_size = dist;
         }
     }
-
     //insert into child's buffer
     auto node_child = reinterpret_cast<BaseNode *>(child);
     if (node_child == nullptr) {
@@ -1094,28 +1125,25 @@ bool IndexBtree::ChooseChildtoPushdown(BaseNode *node_i, LeafNode **node_l ){
         node_i->UnFreeze();
         return false;
     }
-    thread_local bool frozen_by_me1 = node_child->Freeze();
+    bool frozen_by_me1 = node_child->Freeze();
     assert(frozen_by_me1);
-    node_child->update_messages->insert(itrb, itre);
+    auto insrt_b = itrb_k;
+    auto insrt_e = itre_k;
+    node_child->update_messages->insert(itrb_k, itre_k);
+    node_child->UnFreeze();
 
     //clear this buffer
     auto curr_nd_sz = node_i->update_messages->size();
-    node_i->update_messages->erase(itrb, itre);
+//    printf("current update buffer size:%lu. \n",curr_nd_sz);
+    node_i->update_messages->erase(itrb_k, itre_k);
     node_i->UnFreeze();
 
     if (node_child->is_leaf){
-        node_child->UnFreeze();
         *node_l = reinterpret_cast<LeafNode *>(node_child);
         assert((*node_l)->is_leaf);
     }else{
         if (node_child->update_messages->size() > MESSAGE_COUNT){
-            auto ret = ChooseChildtoPushdown( node_child, node_l);
-            if (!ret){
-                node_child->UnFreeze();
-                return false;
-            }
-        }else{
-            node_child->UnFreeze();
+            ChooseChildtoPushdown(node_child, node_l);
         }
     }
 
@@ -1128,10 +1156,10 @@ bool IndexBtree::ChangeRoot(uint64_t expected_root_addr, uint64_t new_root_addr)
     return ret;
 }
 
-ReturnCode IndexBtree::Insert(char * key, uint32_t key_size,
+ReturnCode IndexBtree::Insert(const char * key, uint32_t key_size,
                               row_t *&payload, uint32_t payload_size,
                               std::vector<std::pair<uint64_t, message_upt>> *conflicts) {
-    thread_local Stack stack;
+    thread_local Stack stack = {};
     stack.tree = this;
     uint64_t freeze_retry = 0;
     LeafNode *node = nullptr;
@@ -1145,7 +1173,7 @@ ReturnCode IndexBtree::Insert(char * key, uint32_t key_size,
         }
 
         // 1.Try to frozen the node
-        thread_local bool frozen_by_me = false;
+        volatile bool frozen_by_me = false;
         while(!node->IsFrozen()) {
             frozen_by_me = node->Freeze();
         }
@@ -1153,19 +1181,22 @@ ReturnCode IndexBtree::Insert(char * key, uint32_t key_size,
             if (++freeze_retry <= MAX_FREEZE_RETRY) {
                 continue;
             }
-            if (!frozen_by_me){
-                return ReturnCode::NodeFrozen();
-            }
+            return ReturnCode::NodeFrozen();
         }
 
+        assert(node->IsFrozen());
         // 2.Try to insert to the leaf node
-        auto rc = node->Insert(key, key_size, payload, payload_size, parameters.leaf_node_size );
+        auto rc = node->Insert(key, key_size, payload, payload_size, parameters.leaf_node_size);
         if(rc.IsOk() || rc.IsKeyExists()) {
+            assert(frozen_by_me);
             node->UnFreeze();
             return rc;
+        } else if (rc.IsCASFailure()){
+            node->UnFreeze();
+            continue;
         }
 
-        assert( rc.IsNotEnoughSpace());
+        assert(rc.IsNotEnoughSpace());
         assert(node->IsFrozen());
 
         bool backoff = (freeze_retry <= MAX_FREEZE_RETRY);
@@ -1251,16 +1282,17 @@ ReturnCode IndexBtree::Insert(char * key, uint32_t key_size,
 
         assert(should_proceed);
         if (should_proceed){
-            memset(reinterpret_cast<char *>(node), 0 , parameters.leaf_node_size);
-            mem_allocator.free(reinterpret_cast<char *>(node), parameters.leaf_node_size);
+//            memset(reinterpret_cast<char *>(node), 0 , parameters.leaf_node_size);
+//            mem_allocator.free(reinterpret_cast<char *>(node), parameters.leaf_node_size);
         }
         if (old_parent) {
-            mem_allocator.free(reinterpret_cast<char *>(old_parent), old_parent->header.size);
+//            mem_allocator.free(reinterpret_cast<char *>(old_parent), old_parent->header.size);
         }
     }
 }
+
 #if AGGRESSIVE_INLINING
-ReturnCode IndexBtree::Insert_Append(char * key, uint32_t key_size,
+ReturnCode IndexBtree::Insert_Append(const char * key, uint32_t key_size,
                                       row_t *&payload, uint32_t payload_size,
                                       std::vector<std::pair<uint64_t, message_upt>> *conflicts) {
     thread_local Stack stack;
@@ -1277,7 +1309,7 @@ ReturnCode IndexBtree::Insert_Append(char * key, uint32_t key_size,
         }
 
         // 1.Try to frozen the node
-        thread_local bool frozen_by_me = false;
+        bool frozen_by_me = false;
         while(!node->IsFrozen()) {
             frozen_by_me = node->Freeze();
         }
@@ -1285,15 +1317,18 @@ ReturnCode IndexBtree::Insert_Append(char * key, uint32_t key_size,
             if (++freeze_retry <= MAX_FREEZE_RETRY) {
                 continue;
             }
-            if (!frozen_by_me){
-                return ReturnCode::NodeFrozen();
-            }
+            return ReturnCode::NodeFrozen();
         }
 
         // 2.Try to insert to the leaf node
         auto rc = node->Insert_append(key, key_size, payload, payload_size, parameters.leaf_node_size );
-        if(rc.IsOk() || rc.IsKeyExists() ) {
+        if(rc.IsOk() || rc.IsKeyExists()) {
+            assert(frozen_by_me);
+            node->UnFreeze();
             return rc;
+        } else if (rc.IsCASFailure()){
+            node->UnFreeze();
+            continue;
         }
 
         bool backoff = (freeze_retry <= MAX_FREEZE_RETRY);
@@ -1401,7 +1436,7 @@ RC IndexBtree::index_insert_batch(txn_man* txn, LeafNode *node_l,
     if (node_l->IsFrozen()){
         return Abort;
     }
-    thread_local bool frozen_by_me = node_l->Freeze();
+    bool frozen_by_me = node_l->Freeze();
     if(!frozen_by_me) return Abort;
 
     auto leaf_buffer = node_l->update_messages;
@@ -1420,8 +1455,8 @@ RC IndexBtree::index_insert_batch(txn_man* txn, LeafNode *node_l,
 
     auto first_item = leaf_buffer->begin();
     auto first_key = first_item->first;
-    auto first_payload = first_item->second.newest;
-    auto first_payload_sz = first_item->second.payload_sz;
+//    auto first_payload = first_item->second.newest;
+//    auto first_payload_sz = first_item->second.payload_sz;
     auto node = TraverseToLeaf(&stack, reinterpret_cast<char *>(&first_key), key_size);
     if(node == nullptr){
         rc = Abort;
@@ -1433,8 +1468,12 @@ RC IndexBtree::index_insert_batch(txn_man* txn, LeafNode *node_l,
         if (itr == leaf_buffer->end()){
             break;
         }
-        node->Insert_append(reinterpret_cast<char *>(&first_key), sizeof(uint64_t),
-                            first_payload, first_payload_sz,split_threshold );
+        auto append_ky = itr->first;
+        auto append_payload = itr->second.newest;
+        auto append_payload_sz = itr->second.payload_sz;
+
+        node->Insert_append(append_ky.c_str() , sizeof(uint64_t),
+                            append_payload, append_payload_sz, split_threshold );
         current_sz = current_sz + used_space + one_row_sz;
         distance = split_threshold - current_sz;
         itr++;
@@ -1444,29 +1483,30 @@ RC IndexBtree::index_insert_batch(txn_man* txn, LeafNode *node_l,
         auto itr_key = itr->first;
         auto itr_payload = itr->second.newest;
         auto itr_payload_sz = itr->second.payload_sz;
-        auto retc = Insert_Append(reinterpret_cast<char *>(&itr_key), sizeof(uint64_t),
-                                   itr_payload, itr_payload_sz, &conflicts);
+        auto retc = Insert_Append(itr_key.c_str(), sizeof(uint64_t),
+                                  itr_payload, itr_payload_sz, &conflicts);
         if (retc.IsOk()){
             for (int i = 0; i < conflicts.size(); ++i) {
                 auto item = conflicts[i];
                 auto key_c = item.first;
                 auto mess_c = item.second;
+#if CC_ALG == HEKATON
                 auto txn_id_c = mess_c.newest->end;
+#elif CC_ALG == SILO
+                auto txn_id_c = mess_c.newest->manager->get_tid();
+#endif
                 index_insert_buffer(txn, key_c, mess_c.newest, mess_c.payload_sz);
                 conflicts_txn.insert(txn_id_c);
             }
             rc = RCOK;
         }else{
             if (retc.IsKeyExists()){
-                printf("insert key is exist :%lu. \n", itr_key);
+                printf("insert: %s fail, key:%ld, returnCode:%d.\n ", this->table->get_table_name(), std::stol(itr_key), retc.rc);
                 rc =  Abort;
             }
         }
     }
-//    }else{
-//        //2. node insert by sorting
-//
-//    }
+
     for (auto itr = leaf_buffer->begin(); itr != leaf_buffer->end(); ++itr) {
         conflicts_k.erase(itr->first);
         leaf_buffer->erase(itr);
@@ -1478,8 +1518,7 @@ RC IndexBtree::index_insert_batch(txn_man* txn, LeafNode *node_l,
     return rc;
 }
 #endif
-RC IndexBtree::index_insert(txn_man* txn, idx_key_t key, row_t *&payload, uint32_t payload_size,
-                             int part_id){
+RC IndexBtree::index_insert(txn_man* txn, idx_key_t key, row_t *&payload, uint32_t payload_size, int part_id){
     RC rc = Abort;
     uint32_t key_size = sizeof(key);
     int retry_count=0;
@@ -1487,7 +1526,7 @@ RC IndexBtree::index_insert(txn_man* txn, idx_key_t key, row_t *&payload, uint32
     std::vector<std::pair<uint64_t, message_upt>> conflicts;
 
     retry:
-    auto retc = Insert(reinterpret_cast<char *>(&key), key_size, payload, payload_size, &conflicts);
+    auto retc = Insert(reinterpret_cast<const char *>(&key), key_size, payload, payload_size, &conflicts);
 
     if (retc.IsOk()){
 #if AGGRESSIVE_INLINING
@@ -1497,23 +1536,33 @@ RC IndexBtree::index_insert(txn_man* txn, idx_key_t key, row_t *&payload, uint32
             auto item = conflicts[i];
             auto key_c = item.first;
             auto mess_c = item.second;
-            auto txn_id_c = mess_c.newest->end;
+//            auto txn_id_c = mess_c.newest->end;
+            #if CC_ALG == HEKATON
+                auto txn_id_c = mess_c.newest->end;
+            #elif CC_ALG == SILO
+                auto txn_id_c = mess_c.newest->manager->get_tid();
+            #endif
             index_insert_buffer(txn, key_c, mess_c.newest, mess_c.payload_sz);
 //            conflicts_txn.insert(reinterpret_cast<char *>(txn_id_c));
             conflicts_txn.insert(txn_id_c);
+            conflicts_k.insert(std::to_string(key_c));
         }
 #endif
 #endif
+        assert(payload != nullptr);
         rc = RCOK;
     }else{
         if (retc.IsKeyExists()){
-            printf("insert key is exist :%lu. \n", key);
+//            printf("insert: %s fail, key:%lu, returnCode:%d.\n ", this->table->get_table_name(), key, retc.rc);
             return Abort;
-        }else if (retry_count < MAX_INSERT_RETRY){
-            retry_count++;
-            goto retry;
-        }else{
-            printf("insert fail.");
+        }
+//        else if (retry_count < MAX_INSERT_RETRY){
+//            retry_count++;
+//            goto retry;
+//        }
+        else{
+            return Abort;
+            //printf("insert: %s fail, key:%lu, returnCode:%d.\n ", this->table->get_table_name(), key, retc.rc);
         }
 
     }
@@ -1524,41 +1573,43 @@ RC IndexBtree::index_insert_buffer(txn_man* txn, idx_key_t key, row_t *&payload,
                                    int part_id){
     RC rc = RCOK;
 
-    //1.get root, insert root.
     auto root_ = GetRootNodeSafe();
-    auto root_i = root_ ;
     message_upt messgupt(payload_size, payload);
 
-//    while(root_i->IsFrozen()) {
-//        PAUSE
-//    }
-//    thread_local bool frozen_by_me = root_i->Freeze();
-//    if(!frozen_by_me)
+    //1.get root, insert root.
+    auto root_i = root_ ;
     if (root_i->IsFrozen()){
         return Abort;
     }
-    thread_local bool frozen_by_me = root_i->Freeze();
-    assert(frozen_by_me);
+    bool frozen_by_me = root_i->Freeze();
+    if (!frozen_by_me){
+        return Abort;
+    }
 
     auto root_buff = root_i->update_messages;
     //insert key to root's buffer
-    root_buff->insert(std::make_pair(key, messgupt));
+    root_buff->insert(std::make_pair(std::to_string(key), messgupt));
+    root_i->UnFreeze();
     //insert key to root's BF
-    conflicts_k.insert((uint64_t)(key));
+//    conflicts_k.insert(std::to_string(key));
 
     //2.check this node, if the root fill up, pushdown
     if (root_buff->size() > MESSAGE_COUNT){
         //choose a child having the largest set of pending insertion message
+//        printf("root buffer size:%lu. \n", root_buff->size());
         LeafNode *node_l = nullptr;
-        auto ret = ChooseChildtoPushdown( root_i, &node_l);
+        auto ret = ChooseChildtoPushdown(root_i, &node_l);
+//        printf("choose push down ret:%d. \n", ret);
         if (ret && (node_l != nullptr)){
             assert(node_l->is_leaf);
+//            printf("node_l is leaf:%d. \n", node_l->is_leaf);
+//            printf("node_l buffer size:%lu. \n", node_l->update_messages->size());
             //3.1.if the leaf fill up, split
             //3.2.if split conflits with transaction, insert it to root
             rc = index_insert_batch(txn, node_l,  sizeof(uint64_t), payload_size, parameters.leaf_node_size);
         }
     }else{
-        if (frozen_by_me) root_i->UnFreeze();
+//        if (frozen_by_me) root_i->UnFreeze();
     }
 
 
@@ -1633,7 +1684,7 @@ RC IndexBtree::index_read_buffer(txn_man* txn, idx_key_t key, void *&item, acces
     LeafNode *node_l = nullptr;
     InternalNode *node_i = nullptr;
 
-    bool is_in_buffer = conflicts_k.contains(key);
+    bool is_in_buffer = conflicts_k.contains(std::to_string(key));
     if (!is_in_buffer){
         char *key_read = reinterpret_cast<char *>(&key);
         node_l = TraverseToLeaf(nullptr, key_read,  key_size);
@@ -1681,7 +1732,7 @@ RC IndexBtree::index_read_buffer(txn_man* txn, idx_key_t key, void *&item, acces
                 }
                 auto rett = ATOM_CAS(leaf_row->is_updated, false, true);
                 if(!rett){
-                    printf("set control fail. ");
+//                    printf("set control fail. \n");
                     return RC::Abort;
                 }
             }

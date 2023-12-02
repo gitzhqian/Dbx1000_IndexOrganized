@@ -8,7 +8,9 @@
 void
 Row_silo::init(row_t * row)
 {
+#if !AGGRESSIVE_INLINING
 	_row = row;
+#endif
 #if ATOMIC_WORD
 	_tid_word = 0;
 #else
@@ -29,14 +31,24 @@ Row_silo::access(txn_man * txn, TsType type, row_t * local_row) {
 			PAUSE
 			v = _tid_word;
 		}
+#if AGGRESSIVE_INLINING
+		//local row already holds data
+		//local row is going to be overwritten
+#else
 		local_row->copy(_row);
+#endif
 		COMPILER_BARRIER
 		v2 = _tid_word;
 	}
 	txn->last_tid = v & (~LOCK_BIT);
 #else
 	lock();
-	local_row->copy(_row);
+#if AGGRESSIVE_INLINING
+    //local row already holds data
+    //local row is going to be overwritten
+#else
+    local_row->copy(_row);
+#endif
 	txn->last_tid = _tid;
 	release();
 #endif
@@ -69,7 +81,11 @@ Row_silo::validate(ts_t tid, bool in_write_set) {
 
 void
 Row_silo::write(row_t * data, uint64_t tid) {
+#if AGGRESSIVE_INLINING
+#else
 	_row->copy(data);
+#endif
+
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
 	M_ASSERT(tid > (v & (~LOCK_BIT)) && (v & LOCK_BIT), "tid=%ld, v & LOCK_BIT=%ld, v & (~LOCK_BIT)=%ld\n", tid, (v & LOCK_BIT), (v & (~LOCK_BIT)));
@@ -79,18 +95,16 @@ Row_silo::write(row_t * data, uint64_t tid) {
 #endif
 }
 
-void
-Row_silo::set_tid(uint64_t tid) {
-  assert(_tid_word & LOCK_BIT);
+void Row_silo::set_tid(uint64_t tid) {
 #if ATOMIC_WORD
+    assert(_tid_word & LOCK_BIT);
 	_tid_word = tid;
 #else
 	_tid = tid;
 #endif
 }
 
-void
-Row_silo::lock() {
+void Row_silo::lock() {
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
 	while ((v & LOCK_BIT) || !__sync_bool_compare_and_swap(&_tid_word, v, v | LOCK_BIT)) {
@@ -98,22 +112,20 @@ Row_silo::lock() {
 		v = _tid_word;
 	}
 #else
-	pthread_mutex_lock( _latch );
+	pthread_mutex_lock(_latch);
 #endif
 }
 
-void
-Row_silo::release() {
+void Row_silo::release() {
 #if ATOMIC_WORD
 	assert(_tid_word & LOCK_BIT);
 	_tid_word = _tid_word & (~LOCK_BIT);
 #else
-	pthread_mutex_unlock( _latch );
+	pthread_mutex_unlock(_latch);
 #endif
 }
 
-bool
-Row_silo::try_lock()
+bool Row_silo::try_lock()
 {
 #if ATOMIC_WORD
 	uint64_t v = _tid_word;
@@ -121,15 +133,18 @@ Row_silo::try_lock()
 		return false;
 	return __sync_bool_compare_and_swap(&_tid_word, v, (v | LOCK_BIT));
 #else
-	return pthread_mutex_trylock( _latch ) != EBUSY;
+	return pthread_mutex_trylock(_latch) != EBUSY;
 #endif
 }
 
-uint64_t
-Row_silo::get_tid()
+uint64_t Row_silo::get_tid()
 {
+#if ATOMIC_WORD
 	assert(ATOMIC_WORD);
 	return _tid_word & (~LOCK_BIT);
+#else
+    return _tid;
+#endif
 }
 
 #endif

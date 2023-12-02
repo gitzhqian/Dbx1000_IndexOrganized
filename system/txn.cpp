@@ -98,13 +98,21 @@ RC txn_man::read_index_again( int rid ){
             if (row_again == nullptr){
                 rc = Abort;
             }
-            accesses[rid]->data = reinterpret_cast<row_t *>(row_again);
+            #if CC_ALG == HEKATON
+                accesses[rid]->data = reinterpret_cast<row_t *>(row_again);
+            #elif CC_ALG == SILO
+                accesses[rid]->orig_row = reinterpret_cast<row_t *>(row_again);
+            #endif
         }
     #else
         itemid_t *inval;
         auto retrc = index_read(access_idx, key, row_again, inval, RD, 0);
         if (retrc == RCOK){
+    #if CC_ALG == HEKATON
             accesses[rid]->data = reinterpret_cast<row_t *>(row_again);
+    #elif CC_ALG == SILO
+            accesses[rid]->orig_row = reinterpret_cast<row_t *>(row_again);
+    #endif
         }else{
             rc = Abort;
         }
@@ -126,13 +134,13 @@ RC txn_man::apply_index_changes(RC rc) {
           auto row = insert_idx_row[i];
           auto part_id = insert_idx_part_id[i];
           auto ptr = insert_idx_ptr[i];
-#if CC_ALG == MICA
-          auto rc_insrt = idx->index_insert(NULL,NULL, key, ptr, part_id);
-#else
-          auto rc_insrt = idx->index_insert(NULL, key, row, sizeof(uint64_t), part_id);
-#endif
+       #if CC_ALG == MICA
+          idx->index_insert(NULL,NULL, key, ptr, part_id);
+       #elif CC_ALG == SILO || CC_ALG == HEKATON
+           idx->index_insert(NULL, key, row, sizeof(uint64_t), part_id);
+       #endif
           //idx->index_remove(this, mica_tx, key, NULL, part_id);
-          assert(rc_insrt == RCOK);
+//          assert(rc_insrt == RCOK);
       }
       insert_idx_cnt = 0;
       return rc;
@@ -454,8 +462,11 @@ row_t* txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, c
 
 #if AGGRESSIVE_INLINING
     accesses[row_cnt]->idx = index;
-    accesses[row_cnt]->data = row;
-    accesses[row_cnt]->orig_row = row;
+    accesses[row_cnt]->data = row;       //write row
+    accesses[row_cnt]->orig_row = row;   //read row
+#if CC_ALG == SILO
+    accesses[row_cnt]->orig_data = row;  //read row
+#endif
     rc = row->get_row(type, this, accesses[row_cnt]->data, accesses[row_cnt]->orig_row);
 #else
     rc = row->get_row(type, this, accesses[row_cnt]->data, accesses[row_cnt]->data);
@@ -464,7 +475,7 @@ row_t* txn_man::get_row(IndexT* index, row_t* row, int part_id, access_t type, c
 #endif
 
 	if (rc == Abort) {
-	    printf("get row abort. \n");
+//	    printf("get row abort. \n");
 		return NULL;
 	}
 
@@ -612,21 +623,22 @@ row_t* txn_man::search(IndexT* index, uint64_t key, int part_id,
 
 // insert_row/remove_row
 bool txn_man::insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& out_row_id,
-                          uint64_t inst_key) {
+                         uint64_t inst_key) {
 #if CC_ALG != MICA
 #if AGGRESSIVE_INLINING
     if (tbl->get_new_row_wl(row, part_id, out_row_id, inst_key) != RCOK) {
+//        printf("get new row wl fail, \n");
         return false;
     }
 
-    if (accesses[row_cnt] == NULL) {
-        Access * access = (Access *) mem_allocator.alloc(sizeof(Access), -1);
-        accesses[row_cnt] = access;
-        num_accesses_alloc ++;
-    }
+    Access * access = (Access *) mem_allocator.alloc(sizeof(Access), -1);
+    accesses[row_cnt] = access;
+    num_accesses_alloc ++;
+
     accesses[row_cnt]->idx = tbl->get_table_index();
     accesses[row_cnt]->type = INS;
     accesses[row_cnt]->data = row;
+    row_cnt ++;
 #else
     if (tbl->get_new_row(row, part_id, out_row_id) != RCOK) {
         return false;
@@ -638,13 +650,13 @@ bool txn_man::insert_row(table_t* tbl, row_t*& row, int part_id, uint64_t& out_r
 #if CC_ALG == WAIT_DIE || CC_ALG == NO_WAIT || CC_ALG == DL_DETECT
 	auto rc = row->manager->lock_get(LOCK_EX, this);
     assert(rc == RCOK);
-#elif CC_ALG == TICTOC || CC_ALG == SILO
-	row->manager->lock();
+#elif  CC_ALG == TICTOC || CC_ALG == SILO
+    row->manager->lock();
 #elif CC_ALG == HEKATON
 	row->manager->lock();
 #else
   // Not implemented.
-  assert(false);
+//  assert(false);
 #endif
 
   return true;

@@ -4,6 +4,8 @@
 #ifndef _BTREE_STORE_H_
 #define _BTREE_STORE_H_
 
+//#define TBB_PREVIEW_CONCURRENT_ORDERED_CONTAINERS 1
+
 #include "index_base.h"
 #include "row.h"
 #include "table.h"
@@ -11,9 +13,11 @@
 #include "global.h"
 #include "helper.h"
 #include "mem_alloc.h"
-#include "hopscotch_set.h"
+#include "bhopscotch_set.h"
 #include "row_meta.h"
 #include <stack>
+//#include "tbb/concurrent_set.h"
+//#include "tbb/concurrent_map.h"
 
 /**
 #record size :
@@ -69,8 +73,8 @@ node size:
  * ptr0, a row_t size = 48bytes
  */
 
-constexpr static int MAX_FREEZE_RETRY = 4;//2 3 4
-constexpr static int MAX_INSERT_RETRY = 2;//4 6 8
+constexpr static int MAX_FREEZE_RETRY = 3;//2 3 4
+constexpr static int MAX_INSERT_RETRY = 6;//4 6 8
 
 struct ParameterSet {
     uint32_t split_threshold;
@@ -160,7 +164,7 @@ struct NodeHeader {
     //    (Internal nodes only use the first two (control and frozen) while leaf nodes use all the five.)
     // Following the node header is a growing array of record meta entries.
     struct StatusWord {
-        uint64_t word = 0;
+        volatile uint64_t word = 0;
 
         StatusWord() : word(0) {}
 
@@ -233,7 +237,11 @@ public:
 
     message_upt(uint64_t payload_sz, row_t *newest) : newest(newest), payload_sz(payload_sz) {}
 };
-
+//struct MyKey{
+//    char * k;
+//    uint32_t size;
+//};
+typedef std::map<std::string , message_upt> StdMapp;
 class Stack;
 class BaseNode {
 public:
@@ -245,12 +253,20 @@ public:
 //    typedef libcuckoo::cuckoohash_map<uint64_t, message_upt *> HashMapp;
 //    HashMapp *update_messages;//newest
 //    typedef std::vector<std::pair<uint64_t, message_upt>> MessagesVec; //newest
-    typedef std::map<uint64_t, message_upt> StdMapp; //newest
-//    typedef tbb::concurrent_vector<std::pair<uint64_t, message_upt>> Tbbvect; //newest
-    StdMapp *update_messages;
-//    volatile bool blatch;
+//    struct Mycompare {
+//        bool operator()(const uint64_t& ky1, const uint64_t& ky2) const {
+//            const char *key1 = reinterpret_cast<const char *>(&ky1);
+//            const char *key2 = reinterpret_cast<const char *>(&ky2);
+//
+//            int cmp = KeyCompare(key1, 8, key2, 8);
+//
+//            return cmp;
+//
+//        }
+//    };
     bool is_leaf = false;
     NodeHeader header;
+    StdMapp *update_messages = nullptr;
     row_m row_meta[0];
 
     static const inline int KeyCompare(const char *key1, uint32_t size1,
@@ -263,22 +279,28 @@ public:
         int cmp;
 
         size_t min_size = std::min<size_t>(size1, size2);
-        if (min_size < 16) {
-            cmp = my_memcmp(key1, key2, min_size);
-        } else {
+//        if (min_size < 16) {
+//            cmp = my_memcmp(key1, key2, min_size);
+//        } else {
             cmp = memcmp(key1, key2, min_size);
-        }
-        if (cmp == 0) {
-            return size1 - size2;
-        }
+//        }
+//        if (cmp == 0) {
+//            return size1 - size2;
+//        }
         return cmp;
     }
     static const inline int my_memcmp(const char *key1, const char *key2, uint32_t size) {
-        for (uint32_t i = 0; i < size; i++) {
+//        for (int i = size -1; i >=0 ; i--) {
+//            if (key1[i] != key2[i]) {
+//                return key1[i] - key2[i];
+//            }
+//        }
+        for (uint32_t i = 0; i < size ; i++) {
             if (key1[i] != key2[i]) {
                 return key1[i] - key2[i];
             }
         }
+
         return 0;
     }
 
@@ -339,6 +361,7 @@ public:
 
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
 
+        memset(*new_node, 0, alloc_size);
         (*new_node)->header.size = alloc_size;
         (*new_node)->update_messages = new StdMapp();
 
@@ -346,7 +369,7 @@ public:
 
 // Create an internal node with a new key and associated child pointers inserted
 // based on an existing internal node
-    static void New(InternalNode *src_node,  char *key, uint32_t key_size,
+    static void New(InternalNode *src_node, const char *key, uint32_t key_size,
                      uint64_t left_child_addr, uint64_t right_child_addr,
                      InternalNode **new_node )   {
         size_t alloc_size = src_node->GetHeader()->size;
@@ -354,16 +377,16 @@ public:
         alloc_size = alloc_size + sizeof(right_child_addr) + sizeof(row_m);
 
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
+        memset(*new_node, 0, alloc_size);
 
         new(*new_node) InternalNode(alloc_size, src_node, 0, src_node->header.sorted_count,
                                     key, key_size, left_child_addr, right_child_addr);
-
         (*new_node)->update_messages = new StdMapp();
 
     }
 
 // Create an internal node with a single separator key and two pointers
-    static void New( char * key, uint32_t key_size, uint64_t left_child_addr,
+    static void New(const char * key, uint32_t key_size, uint64_t left_child_addr,
                      uint64_t right_child_addr, InternalNode **new_node ) {
         size_t alloc_size = sizeof(InternalNode);
         alloc_size = alloc_size + row_m::PadKeyLength(key_size);
@@ -371,14 +394,14 @@ public:
         alloc_size = alloc_size + sizeof(row_m) * 2;
 
         *new_node =  reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
-//        memset((*new_node), 0, alloc_size);
+        memset((*new_node), 0, alloc_size);
 
         new(*new_node) InternalNode(alloc_size, key, key_size, left_child_addr, right_child_addr);
         (*new_node)->update_messages = new StdMapp();
 
     }
     static void  New(InternalNode *src_node, uint32_t begin_meta_idx,
-                           uint32_t nr_records,   char * key, uint32_t key_size,
+                           uint32_t nr_records, const  char * key, uint32_t key_size,
                            uint64_t left_child_addr, uint64_t right_child_addr,
                            InternalNode **new_node, uint64_t left_most_child_addr  ) {
         // Figure out how large the new node will be
@@ -403,6 +426,7 @@ public:
         }
 
         *new_node = reinterpret_cast<InternalNode *>(mem_allocator.alloc(alloc_size, -1));
+        memset(*new_node, 0, alloc_size);
 
         new (*new_node) InternalNode(alloc_size, src_node, begin_meta_idx, nr_records,
                                      key, key_size, left_child_addr, right_child_addr, left_most_child_addr);
@@ -411,12 +435,12 @@ public:
 
     ~InternalNode() = default;
 
-    InternalNode(uint32_t node_size,   char * key, uint32_t key_size,
+    InternalNode(uint32_t node_size, const  char * key, uint32_t key_size,
                  uint64_t left_child_addr, uint64_t right_child_addr);
 
     InternalNode(uint32_t node_size, InternalNode *src_node,
                  uint32_t begin_meta_idx, uint32_t nr_records,
-                   char * key, uint32_t key_size,
+                 const  char * key, uint32_t key_size,
                  uint64_t left_child_addr, uint64_t right_child_addr,
                  uint64_t left_most_child_addr = 0,
                  uint32_t value_size = sizeof(uint64_t));
@@ -424,7 +448,7 @@ public:
     void InternalNodeUpdates(StdMapp::iterator src_ben, StdMapp::iterator src_end);
 
     bool PrepareForSplit(Stack &stack, uint32_t split_threshold,
-                           char * key, uint32_t key_size,
+                         const  char * key, uint32_t key_size,
                          uint64_t left_child_addr, uint64_t right_child_addr,
                          InternalNode **new_node, bool backoff );
 
@@ -439,17 +463,16 @@ public:
 
     inline BaseNode *GetChildByMetaIndex(uint32_t index) {
         uint64_t child_addr;
-        row_m red_child = this->row_meta[index];
+        GetRawRow(row_meta[index], nullptr, nullptr, &child_addr);
 
-        GetRawRow(red_child, nullptr, nullptr, &child_addr);
-//        printf("GetChildByMetaIndex: %u, %lu \n", index, child_addr);
         if (child_addr == 0) return nullptr;
 
-        BaseNode *rt_node = reinterpret_cast<BaseNode *> (child_addr);
+        auto rt_node = reinterpret_cast<BaseNode *> (child_addr);
         return rt_node;
     }
 
 };
+
 struct Roww {
     row_m meta;
     char data[0];
@@ -485,6 +508,7 @@ struct Roww {
         return cmp < 0;
     }
 };
+
 class LeafNode : public BaseNode {
 public:
     static void New(LeafNode **mem, uint32_t node_size );
@@ -501,12 +525,12 @@ public:
 
     ~LeafNode() = default;
 
-    uint32_t GetFirstGreater(char *key);
+    uint32_t GetFirstGreater(const char *key);
 
-    ReturnCode Insert(char * key, uint32_t key_size,
+    ReturnCode Insert(const char * key, uint32_t key_size,
                       row_t *&payload, uint32_t payload_size,
                       uint32_t split_threshold );
-    ReturnCode Insert_append(char * key, uint32_t key_size,
+    ReturnCode Insert_append(const char * key, uint32_t key_size,
                                        row_t *&payload, uint32_t payload_size,
                                        uint32_t split_threshold);
 
@@ -529,7 +553,7 @@ public:
 //    ReturnCode RangeScanBySize(const char * key1, uint32_t size1, uint32_t to_scan,
 //                               std::list<Roww *> *result);
 
-    ReturnCode SearchRowMeta(char * key, uint32_t key_size,
+    ReturnCode SearchRowMeta(const char * key, uint32_t key_size,
                              row_m **out_metadata, uint32_t start_pos = 0,
                              uint32_t end_pos = (uint32_t) -1,
                              bool check_concurrency = true );
@@ -540,7 +564,7 @@ private:
         IsUnique, Duplicate, ReCheck, NodeFrozen
     };
 
-    Uniqueness CheckUnique(char * key, uint32_t key_size);
+    Uniqueness CheckUnique(const char * key, uint32_t key_size);
     Uniqueness RecheckUnique(char * key, uint32_t key_size, uint32_t end_pos);
 
 };
@@ -684,8 +708,29 @@ public:
     }
 
     void initIndexBtree(int part_id, table_t * table_){
-        ParameterSet param(SPLIT_THRESHOLD, MERGE_THRESHOLD, DRAM_BLOCK_SIZE,
-                           PAYLOAD_SIZE, KEY_SIZE);
+        ParameterSet param(SPLIT_THRESHOLD, MERGE_THRESHOLD, DRAM_BLOCK_SIZE, PAYLOAD_SIZE, KEY_SIZE);
+        string table_name = table_->get_table_name();
+#if AGGRESSIVE_INLINING
+        if (table_name == "WAREHOUSE"){
+            param.leaf_node_size = WAREHOUSE_BLOCK_SIZE;
+        } else if (table_name == "DISTRICT"){
+            param.leaf_node_size = DISTRICT_BLOCK_SIZE;
+        }else if (table_name == "CUSTOMER"){
+            param.leaf_node_size = CUSTOMER_BLOCK_SIZE;
+        }else if (table_name == "CUSTOMER_LAST"){
+            param.leaf_node_size = CUSTOMER_BLOCK_SIZE;
+        }else if (table_name == "NEW-ORDER"){
+            param.leaf_node_size = NEW_ORDER_BLOCK_SIZE;
+        }else if (table_name == "ORDER"){
+            param.leaf_node_size = ORDER_BLOCK_SIZE;
+        }else if (table_name == "ORDER-LINE"){
+            param.leaf_node_size = ORDER_LINE_BLOCK_SIZE;
+        }else if (table_name == "ITEM"){
+            param.leaf_node_size = ITEM_BLOCK_SIZE;
+        }else if (table_name == "STOCK"){
+            param.leaf_node_size = STOCK_BLOCK_SIZE;
+        }
+#endif
 
         Init(param, KEY_SIZE, table_ );
     }
@@ -728,9 +773,9 @@ public:
 
 
 private:
-    ReturnCode Insert(char * key, uint32_t key_size, row_t *&payload, uint32_t payload_size ,
+    ReturnCode Insert(const char * key, uint32_t key_size, row_t *&payload, uint32_t payload_size ,
                       std::vector<std::pair<uint64_t, message_upt>> *conflicts);
-    ReturnCode Insert_Append(char * key, uint32_t key_size,
+    ReturnCode Insert_Append(const char * key, uint32_t key_size,
                              row_t *&payload, uint32_t payload_size,
                              std::vector<std::pair<uint64_t, message_upt>> *conflicts);
 //    int Scan(char * start_key, uint32_t key_size , uint32_t range, void **output);
@@ -739,8 +784,9 @@ private:
 
     BaseNode *root;
     ParameterSet parameters;
-    tsl::hopscotch_set<uint64_t> conflicts_k ;// inserts and update conflicts
-    tsl::hopscotch_set<uint64_t> conflicts_txn ;
+//    std::set<std::string> conflicts_k;
+    tsl::bhopscotch_set<std::string> conflicts_k ;// inserts and update conflicts
+    tsl::bhopscotch_set<uint64_t> conflicts_txn ;
 };
 
 

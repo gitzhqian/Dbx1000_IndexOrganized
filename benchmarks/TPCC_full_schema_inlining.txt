@@ -27,46 +27,46 @@ TABLE=CUSTOMER
 	8,int64_t,C_ID
 	8,int64_t,C_D_ID
 	8,int64_t,C_W_ID
-	16,string,C_FIRST
-	2,string,C_MIDDLE
-	16,string,C_LAST
-	20,string,C_STREET_1
-	20,string,C_STREET_2
-	20,string,C_CITY
-	2,string,C_STATE
-	9,string,C_ZIP
-	16,string,C_PHONE
-	8,int64_t,C_SINCE
-	2,string,C_CREDIT
 	8,double,C_CREDIT_LIM
-	8,double,C_DISCOUNT
+	8,double,C_DISCOUNT,1
 	8,double,C_BALANCE,1
 	8,double,C_YTD_PAYMENT,1
 	8,uint64_t,C_PAYMENT_CNT,1
 	8,uint64_t,C_DELIVERY_CNT,1
+    16,string,C_LAST
+    2,string,C_MIDDLE
+    16,string,C_FIRST
+    20,string,C_STREET_1
+    20,string,C_STREET_2
+    20,string,C_CITY
+    2,string,C_STATE
+    9,string,C_ZIP
+    16,string,C_PHONE
+    8,int64_t,C_SINCE
+    2,string,C_CREDIT
 	500,string,C_DATA,2
 
 TABLE=CUSTOMER_LAST
 	8,int64_t,C_ID
 	8,int64_t,C_D_ID
 	8,int64_t,C_W_ID
-	16,string,C_FIRST
-	2,string,C_MIDDLE
-	16,string,C_LAST
-	20,string,C_STREET_1
-	20,string,C_STREET_2
-	20,string,C_CITY
-	2,string,C_STATE
-	9,string,C_ZIP
-	16,string,C_PHONE
-	8,int64_t,C_SINCE
-	2,string,C_CREDIT
 	8,double,C_CREDIT_LIM
-	8,double,C_DISCOUNT
+	8,double,C_DISCOUNT,1
 	8,double,C_BALANCE,1
 	8,double,C_YTD_PAYMENT,1
 	8,uint64_t,C_PAYMENT_CNT,1
 	8,uint64_t,C_DELIVERY_CNT,1
+    16,string,C_LAST
+    2,string,C_MIDDLE
+    16,string,C_FIRST
+    20,string,C_STREET_1
+    20,string,C_STREET_2
+    20,string,C_CITY
+    2,string,C_STATE
+    9,string,C_ZIP
+    16,string,C_PHONE
+    8,int64_t,C_SINCE
+    2,string,C_CREDIT
 	500,string,C_DATA,2
 
 //TABLE=HISTORY
@@ -150,8 +150,8 @@ INDEX=ORDERED_CUSTOMER_ID_IDX
 CUSTOMER,30000
 
 // = DIST_PER_WARE * g_cust_per_dist
-INDEX=ORDERED_CUSTOMER_LAST_IDX
-CUSTOMER_LAST,30000
+//INDEX=ORDERED_CUSTOMER_LAST_IDX
+//CUSTOMER_LAST,30000
 
 // = g_max_items
 INDEX=ORDERED_STOCK_IDX

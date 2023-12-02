@@ -166,6 +166,8 @@ class tpcc_txn_man : public txn_man {
                                  int64_t ol_o_id, uint64_t s_w_id,
                                  uint64_t threshold,
                                  uint64_t* out_distinct_count);
+
+    void new_order_incrementNextOrderIdRandom(row_t *row, int64_t o_id);
 };
 
 #endif

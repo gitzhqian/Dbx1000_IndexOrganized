@@ -24,9 +24,10 @@ public:
 // All the querise for a particular thread.
 class Query_thd {
 public:
-	void init(workload * h_wl, int thread_id);
+	void init(workload * h_wl, int thread_id );
+    void init(workload * h_wl, int thread_id, std::array<uint64_t, 1000*100> &insert_oids,  uint64_t  next_oid);
 	base_query * get_next_query(); 
-	int q_idx;
+	uint64_t q_idx;
 
 #if WORKLOAD == YCSB
 	ycsb_query * queries;
@@ -54,4 +55,6 @@ private:
 	Query_thd ** all_queries;
 	workload * _wl;
 	static int _next_tid;
+    uint64_t  next_oid;
+    std::array<uint64_t, 1000*100> random_insert_oids;
 };

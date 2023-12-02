@@ -25,7 +25,7 @@ RC tpcc_wl::init() {
 #if AGGRESSIVE_INLINING
     path += "TPCC_full_schema_inlining.txt";
 #else
-    path += "TPCC_full_schema.txt";
+    path += "TPCC_full_schema_inlining.txt";
 #endif
 
   cout << "reading schema file: " << path << endl;
@@ -111,13 +111,19 @@ RC tpcc_wl::init_table() {
   mica_db->deactivate(0);
 #endif
 
-  pthread_t* p_thds = new pthread_t[g_num_wh - 1];
-  for (uint32_t i = 0; i < g_num_wh; i++) tid_lock[i] = 0;
-  for (uint32_t i = 0; i < g_num_wh - 1; i++) {
-    pthread_create(&p_thds[i], NULL, threadInitWarehouse, this);
-  }
-  threadInitWarehouse(this);
-  for (uint32_t i = 0; i < g_num_wh - 1; i++) pthread_join(p_thds[i], NULL);
+//  pthread_t* p_thds = new pthread_t[g_num_wh - 1];
+//  for (uint32_t i = 0; i < g_num_wh; i++) tid_lock[i] = 0;
+//  for (uint32_t i = 0; i < g_num_wh - 1; i++) {
+//    pthread_create(&p_thds[i], NULL, threadInitWarehouse, this);
+//  }
+//  threadInitWarehouse(this);
+//  for (uint32_t i = 0; i < g_num_wh - 1; i++) pthread_join(p_thds[i], NULL);
+
+    tpcc_wl* wl = (tpcc_wl*)this;
+    wl->init_tab_item();
+    for (int i = 0; i < g_num_wh; ++i) {
+        threadInitWarehouse(this);
+    }
 
 #if TPCC_VALIDATE_GAP
   ::mica::util::lcore.pin_thread(0);
@@ -143,7 +149,7 @@ RC tpcc_wl::get_txn_man(txn_man*& txn_manager, thread_t* h_thd) {
 // TODO ITEM table is assumed to be in partition 0
 void tpcc_wl::init_tab_item() {
   for (uint64_t i = 1; i <= g_max_items; i++) {
-    row_t* row;
+    row_t* row = nullptr;
 #if CC_ALG == MICA
     row_t row_container;
     row = &row_container;
@@ -175,7 +181,7 @@ void tpcc_wl::init_tab_item() {
 
 void tpcc_wl::init_tab_wh(uint32_t wid) {
   assert(wid >= 1 && wid <= g_num_wh);
-  row_t* row;
+  row_t* row = nullptr;
 #if CC_ALG == MICA
   row_t row_container;
   row = &row_container;
@@ -215,7 +221,7 @@ void tpcc_wl::init_tab_wh(uint32_t wid) {
 
 void tpcc_wl::init_tab_dist(uint64_t wid) {
   for (uint64_t did = 1; did <= DIST_PER_WARE; did++) {
-    row_t* row;
+    row_t* row = nullptr;
 #if CC_ALG == MICA
     row_t row_container;
     row = &row_container;
@@ -258,7 +264,7 @@ void tpcc_wl::init_tab_dist(uint64_t wid) {
 
 void tpcc_wl::init_tab_stock(uint64_t wid) {
   for (uint64_t sid = 1; sid <= g_max_items; sid++) {
-    row_t* row;
+    row_t* row = nullptr;
 #if CC_ALG == MICA
     row_t row_container;
     row = &row_container;
@@ -306,7 +312,7 @@ void tpcc_wl::init_tab_stock(uint64_t wid) {
 void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
     assert(g_cust_per_dist >= 1000);
     for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++) {
-        row_t *row;
+        row_t *row = nullptr;
 #if CC_ALG == MICA
         row_t row_container;
         row = &row_container;
@@ -319,14 +325,21 @@ void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
         row->set_value(C_ID, cid);
         row->set_value(C_D_ID, did);
         row->set_value(C_W_ID, wid);
+        row->set_value(C_CREDIT_LIM, uint64_t(50000));
+        double disc = URand(1, 5000, wid - 1) / 10000.0 ;
+        row->set_value(C_DISCOUNT, disc);
+        double bal = -10.0;
+        row->set_value(C_BALANCE, bal);
+        row->set_value(C_YTD_PAYMENT, double(10.0));
+        row->set_value(C_PAYMENT_CNT, uint64_t(1));
+        row->set_value(C_DELIVERY_CNT, uint64_t(0));
         char c_last[LASTNAME_LEN];
         if (cid <= 1000)
             Lastname(cid - 1, c_last);
         else
             Lastname(NURand(255, 0, 999, wid - 1), c_last);
         row->set_value(C_LAST, c_last);
-
-        char tmp[3] = "OE";
+        char tmp[2] = "E";
         row->set_value(C_MIDDLE, tmp);
         char c_first[FIRSTNAME_LEN];
         MakeAlphaString(FIRSTNAME_MINLEN, sizeof(c_first), c_first, wid - 1);
@@ -348,28 +361,30 @@ void tpcc_wl::init_tab_cust(uint64_t did, uint64_t wid) {
         MakeNumberString(16, 16, phone, wid - 1); /* Phone */
         row->set_value(C_PHONE, phone);
         row->set_value(C_SINCE, uint64_t(0));
-        row->set_value(C_CREDIT_LIM, 50000.0);
+        if (RAND(10, wid - 1) == 0) {
+            char tmp[2] = "G";
+            row->set_value(C_CREDIT, tmp);
+        } else {
+            char tmp[2] = "B";
+            row->set_value(C_CREDIT, tmp);
+        }
         char c_data[500];
         MakeAlphaString(300, 500, c_data, wid - 1);
         row->set_value(C_DATA, c_data);
 
-        if (RAND(10, wid - 1) == 0) {
-            char tmp[] = "GC";
-            row->set_value(C_CREDIT, tmp);
-        } else {
-            char tmp[] = "BC";
-            row->set_value(C_CREDIT, tmp);
-        }
-        row->set_value(C_DISCOUNT, (double) URand(1, 5000, wid - 1) / 10000.0);
 
-        row->set_value(C_BALANCE, -10.0);
-        row->set_value(C_YTD_PAYMENT, 10.0);
-        row->set_value(C_PAYMENT_CNT, uint64_t(1));
-        row->set_value(C_DELIVERY_CNT, uint64_t(0));
+
+//        auto c1 = *reinterpret_cast<uint64_t *>(row->get_value(C_ID));
+//        auto c2 = *reinterpret_cast<uint64_t *>(row->get_value(C_D_ID));
+//        auto c3 = *reinterpret_cast<uint64_t *>(row->get_value(C_W_ID));
+//        uint64_t limit = *reinterpret_cast<uint64_t *>(row->get_value(C_CREDIT_LIM));
+//        auto dis = *reinterpret_cast<double *>(row->get_value(C_DISCOUNT));
+//        auto balan = *reinterpret_cast<double *>(row->get_value(C_BALANCE));
+//        auto pament = *reinterpret_cast<uint64_t *>(row->get_value(C_YTD_PAYMENT));
 
 #if AGGRESSIVE_INLINING
 #else
-        index_insert(i_customer_last, custNPKey(did, wid, c_last), row, wh_to_part(wid));
+//        index_insert(i_customer_last, custNPKey(did, wid, c_last), row, wh_to_part(wid));
         index_insert(i_customer_id, custKey(cid, did, wid), row, wh_to_part(wid));
 #endif
     }
@@ -389,6 +404,14 @@ void tpcc_wl::init_tab_cust_last(uint64_t did, uint64_t wid) {
         row->set_value(C_ID, cid);
         row->set_value(C_D_ID, did);
         row->set_value(C_W_ID, wid);
+        row->set_value(C_CREDIT_LIM, uint64_t(50000));
+        double disc = URand(1, 5000, wid - 1) / 10000.0 ;
+        row->set_value(C_DISCOUNT, disc);
+        double bal = -10.0;
+        row->set_value(C_BALANCE, bal);
+        row->set_value(C_YTD_PAYMENT, 10.0);
+        row->set_value(C_PAYMENT_CNT, uint64_t(1));
+        row->set_value(C_DELIVERY_CNT, uint64_t(0));
         char c_last[LASTNAME_LEN];
         if (cid <= 1000)
             Lastname(cid - 1, c_last);
@@ -418,30 +441,22 @@ void tpcc_wl::init_tab_cust_last(uint64_t did, uint64_t wid) {
         MakeNumberString(16, 16, phone, wid - 1); /* Phone */
         row->set_value(C_PHONE, phone);
         row->set_value(C_SINCE, uint64_t(0));
-        row->set_value(C_CREDIT_LIM, 50000.0);
+        if (RAND(10, wid - 1) == 0) {
+            char tmp[3] = "GC";
+            row->set_value(C_CREDIT, tmp);
+        } else {
+            char tmp[3] = "BC";
+            row->set_value(C_CREDIT, tmp);
+        }
         char c_data[500];
         MakeAlphaString(300, 500, c_data, wid - 1);
         row->set_value(C_DATA, c_data);
-
-        if (RAND(10, wid - 1) == 0) {
-            char tmp[] = "GC";
-            row->set_value(C_CREDIT, tmp);
-        } else {
-            char tmp[] = "BC";
-            row->set_value(C_CREDIT, tmp);
-        }
-        row->set_value(C_DISCOUNT, (double)URand(1, 5000, wid - 1) / 10000.0);
-
-        row->set_value(C_BALANCE, -10.0);
-        row->set_value(C_YTD_PAYMENT, 10.0);
-        row->set_value(C_PAYMENT_CNT, uint64_t(1));
-        row->set_value(C_DELIVERY_CNT, uint64_t(0));
 
     }
 }
 
 void tpcc_wl::init_tab_hist(uint64_t c_id, uint64_t d_id, uint64_t w_id) {
-  row_t* row;
+  row_t* row = nullptr;
 #if CC_ALG == MICA
   row_t row_container;
   row = &row_container;
@@ -467,7 +482,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
   uint64_t perm[g_cust_per_dist];
   init_permutation(perm, wid); /* initialize permutation of customer numbers */
   for (uint64_t oid = 1; oid <= g_cust_per_dist; oid++) {
-    row_t* row;
+    row_t* row = nullptr;
 #if CC_ALG == MICA
     row_t row_container;
     row = &row_container;
@@ -494,7 +509,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
 #if TPCC_FULL
 #if AGGRESSIVE_INLINING
 #else
-    index_insert(i_order, orderKey(oid, did, wid), row, wh_to_part(wid));
+    index_insert(i_order, idx_primary, row, wh_to_part(wid));
 #endif
 //    index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row,
 //                 wh_to_part(wid));
@@ -525,7 +540,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
 #if TPCC_FULL
 #if AGGRESSIVE_INLINING
 #else
-      index_insert(i_orderline, orderlineKey(ol, oid, did, wid), row, wh_to_part(wid));
+      index_insert(i_orderline, idx_primary_1, row, wh_to_part(wid));
 #endif
 #endif
     }
@@ -542,7 +557,7 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
 #if TPCC_FULL
 #if AGGRESSIVE_INLINING
 #else
-      index_insert(i_neworder, neworderKey(oid, did, wid), row, wh_to_part(wid));
+      index_insert(i_neworder, idx_primary_2, row, wh_to_part(wid));
 #endif
 #endif
     }
@@ -588,14 +603,14 @@ void* tpcc_wl::threadInitWarehouse(void* This) {
 
   mem_allocator.register_thread(tid % g_thread_cnt);
 
-  if (tid == 0) wl->init_tab_item();
+//  if (tid == 0) wl->init_tab_item();
   wl->init_tab_wh(wid);
   wl->init_tab_dist(wid);
   wl->init_tab_stock(wid);
   for (uint64_t did = 1; did <= DIST_PER_WARE; did++) {
     wl->init_tab_cust(did, wid);
 #if AGGRESSIVE_INLINING
-    wl->init_tab_cust_last(did, wid);
+    //wl->init_tab_cust_last(did, wid);
 #endif
     wl->init_tab_order(did, wid);
 //    for (uint64_t cid = 1; cid <= g_cust_per_dist; cid++)

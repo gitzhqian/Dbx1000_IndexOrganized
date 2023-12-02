@@ -15,7 +15,7 @@
 #include "mem_alloc.h"
 #include "manager.h"
 
-#if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+#if  USE_INLINED_DATA && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
 
 size_t row_t::alloc_size(table_t* t) { return sizeof(row_t) + t->get_schema()->get_tuple_size(); }
 
@@ -33,12 +33,11 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
     _primary_key = idx_key;
 	_row_id = row_id;
 	_part_id = part_id;
-	this->table = host_table;
+	table = host_table;
 	is_deleted = 0;
-#if AGGRESSIVE_INLINING && CC_ALG != MICA
-	is_updated = 0;
+    is_updated = 0;
+#if AGGRESSIVE_INLINING && CC_ALG != MICA && CC_ALG == HEKATON
 	this->next_row = nullptr;
-//	this->successor = nullptr;
     this->begin_txn = false;
     this->end_txn = false;
     this->begin = 0;
@@ -101,7 +100,7 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 		break;
 	}
 #else
-    #if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+    #if  USE_INLINED_DATA  && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
         // We can just use &data[0].
     #else
         #if AGGRESSIVE_INLINING == false
@@ -116,7 +115,7 @@ RC row_t::init(uint64_t idx_key, table_t * host_table, uint64_t part_id, uint64_
 void row_t::init(int size)
 {
 #if CC_ALG != MICA
-#if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+#if  USE_INLINED_DATA && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
 	// We can just use &data[0].
 #else
 #if AGGRESSIVE_INLINING
@@ -144,7 +143,7 @@ row_t::switch_schema(table_t * host_table) {
 
 void row_t::init_manager(row_t * row) {
 #if CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE
-    #ifdef USE_INLINED_DATA
+    #if  USE_INLINED_DATA
         // We can just use &manager[0].
     #else
         manager = (Row_lock *) mem_allocator.alloc(sizeof(Row_lock), _part_id);
@@ -158,13 +157,13 @@ void row_t::init_manager(row_t * row) {
 #elif CC_ALG == OCC
     manager = (Row_occ *) mem_allocator.alloc(sizeof(Row_occ), _part_id);
 #elif CC_ALG == TICTOC
-    #ifdef USE_INLINED_DATA
+    #if  USE_INLINED_DATA
         // We can just use &manager[0].
     #else
         manager = (Row_tictoc *) mem_allocator.alloc(sizeof(Row_tictoc), _part_id);
     #endif
 #elif CC_ALG == SILO
-    #ifdef USE_INLINED_DATA
+    #if USE_INLINED_DATA
         // We can just use &manager[0].
     #else
         manager = (Row_silo *) mem_allocator.alloc(sizeof(Row_silo), _part_id);
@@ -292,7 +291,7 @@ void row_t::copy(row_t * src) {
 
 void row_t::free_row() {
 #if CC_ALG != MICA
-#if defined(USE_INLINED_DATA) && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
+#if  USE_INLINED_DATA  && (CC_ALG == DL_DETECT || CC_ALG == NO_WAIT || CC_ALG == WAIT_DIE || CC_ALG == SILO || CC_ALG == TICTOC)
 #else
 	free(data);
 #endif
