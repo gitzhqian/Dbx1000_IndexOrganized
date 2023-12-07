@@ -4,6 +4,7 @@
 /***********************************************/
 // Simulation + Hardware
 /***********************************************/
+//paramter 1
 #define THREAD_CNT					1
 #define PART_CNT					1
 // each transaction only accesses 1 virtual partition. But the lock/ts manager and index are not aware of such partitioning. VIRTUAL_PART_CNT describes the request distribution and is only used to generate queries. For HSTORE, VIRTUAL_PART_CNT should be the same as PART_CNT.
@@ -14,7 +15,8 @@
 // # of transactions to run for warmup
 #define WARMUP						0
 // YCSB or TPCC or TATP
-#define WORKLOAD 					YCSB
+//paramter 2
+#define WORKLOAD 					TPCC
 // print the transaction latency distribution
 #define PRT_LAT_DISTR				false
 #define STATS_ENABLE				true
@@ -41,7 +43,8 @@
 /***********************************************/
 // WAIT_DIE, NO_WAIT, DL_DETECT, TIMESTAMP, MVCC, HEKATON, HSTORE, OCC, VLL, TICTOC, SILO
 // TODO TIMESTAMP does not work at this moment
-#define CC_ALG 						HEKATON    // MICA HEKATON
+//paramter 3
+#define CC_ALG 						SILO    // MICA HEKATON
 #define ISOLATION_LEVEL 			REPEATABLE_READ  //REPEATABLE_READ SERIALIZABLE
 
 // all transactions acquire tuples according to the primary key order.
@@ -58,6 +61,7 @@
 #define ENABLE_LATCH				false
 #define CENTRAL_INDEX				false
 #define CENTRAL_MANAGER 			false
+//paramter 4
 #define INDEX_STRUCT				IndexBtree   //IndexHash IDX_MICA  IndexBtree
 #define BTREE_ORDER 				16
 
@@ -111,17 +115,24 @@
 // max number of rows touched per transaction
 #define MAX_ROW_PER_TXN				1024
 #define QUERY_INTVL 				1UL
-#define MAX_TXN_PER_PART 			(1000*100)
+//paramter 5
+#define MAX_TXN_PER_PART 			1000*1
 #define MAX_WARMUP_DURATION         10.0
 #define MAX_TXN_DURATION            1000.0
 #define FIRST_PART_LOCAL 			true
-#define MAX_TUPLE_SIZE				100 // in bytes
+//paramter 6
+#define MAX_TUPLE_SIZE				1000 // in bytes
 // ==== [YCSB] ====
 #define INIT_PARALLELISM			1
+//paramter 7
 #define SYNTH_TABLE_SIZE 			(1024 * 1000)
+//paramter 8
 #define ZIPF_THETA 					0.0
+//paramter 9
 #define READ_PERC 					0.5
+//paramter 10
 #define WRITE_PERC 					0.0
+//paramter 11
 #define INSERT_PERC 				0.5
 #define SCAN_PERC 					0
 #define SCAN_LEN					20
@@ -138,19 +149,18 @@
 // are not modeled.
 #define TPCC_ACCESS_ALL 			false
 #define WH_UPDATE					true
-#define NUM_WH 						2
-//
-#define TPCC_INSERT_ROWS  false
-#define TPCC_DELETE_ROWS  false
-#define TPCC_INSERT_INDEX false
-#define TPCC_DELETE_INDEX false
+#define NUM_WH 						3
+#define TPCC_INSERT_ROWS            true
+#define TPCC_INSERT_INDEX           true
+#define TPCC_DELETE_ROWS            false
+#define TPCC_DELETE_INDEX           false
 // TPCC_FULL requires TPCC_INSERT_ROWS and TPCC_UPDATE_INDEX to fully function
-#define TPCC_FULL         false
-#define TPCC_CF		      false
-#define TPCC_SPLIT_DELIVERY false
-#define TPCC_VALIDATE_GAP   false
-#define TPCC_VALIDATE_NODE  true
-#define SIMPLE_INDEX_UPDATE false
+#define TPCC_FULL                   true
+#define TPCC_CF		                false
+#define TPCC_SPLIT_DELIVERY         false
+#define TPCC_VALIDATE_GAP           false
+#define TPCC_VALIDATE_NODE          true
+#define SIMPLE_INDEX_UPDATE         false
 //
 enum TPCCTxnType {TPCC_ALL,
 				  TPCC_PAYMENT,
@@ -161,7 +171,7 @@ enum TPCCTxnType {TPCC_ALL,
 extern TPCCTxnType 					g_tpcc_txn_type;
 
 //#define TXN_TYPE					TPCC_ALL
-#define PERC_PAYMENT 				0.5
+#define PERC_PAYMENT 				0.0
 #define FIRSTNAME_MINLEN 			8
 #define FIRSTNAME_LEN 				16
 #define LASTNAME_LEN 				16
@@ -260,26 +270,41 @@ extern TestCases					g_test_case;
 #define MICA_NO_INLINING false
 #define MICA_NO_BACKOFF false
 
-#define MICA_USE_FIXED_BACKOFF false
-#define MICA_FIXED_BACKOFF 0.
+#define MICA_USE_FIXED_BACKOFF    false
+#define MICA_FIXED_BACKOFF        0.
 
-#define MICA_USE_SLOW_GC false
-#define MICA_SLOW_GC 10
+#define MICA_USE_SLOW_GC           false
+#define MICA_SLOW_GC               10
 
-#define PRINT_LAT_DIST false
-#define USE_INLINED_DATA      false
+#define PRINT_LAT_DIST            false
+#define USE_INLINED_DATA          false
 
-#define AGGRESSIVE_INLINING   false
+//paramter 12
+#define AGGRESSIVE_INLINING   true
+//paramter 13
 #define BUFFERING             false
-#define MESSAGE_COUNT           240
+//paramter 14
+#define MESSAGE_COUNT           8
 #define RESEIVE_COUNT           20
 
-//#define DRAM_BLOCK_SIZE             1024
-#define DRAM_BLOCK_SIZE               440
-//#define DRAM_BLOCK_SIZE             1560
-//#define DRAM_BLOCK_SIZE             48*1024
-//256: 8 entries in inner node;
-//#define SPLIT_THRESHOLD             1024
+//paramter 15
+//#define DRAM_BLOCK_SIZE             440
+//#define SPLIT_THRESHOLD             520
+//16 entries heap
+#define DRAM_BLOCK_SIZE             440
+
+#define WAREHOUSE_BLOCK_SIZE         3456
+#define DISTRICT_BLOCK_SIZE          3456
+#define CUSTOMER_BLOCK_SIZE          13536
+#define NEW_ORDER_BLOCK_SIZE         2112
+#define ORDER_BLOCK_SIZE             2800
+#define ORDER_LINE_BLOCK_SIZE        3456
+#define ITEM_BLOCK_SIZE              3456
+#define STOCK_BLOCK_SIZE             7296
+//#define CUSTOMER_LAST_BLOCK_SIZE
+//#define HISTORY_BLOCK_SIZE
+
+//16 entries
 #define SPLIT_THRESHOLD             456
 #define PAYLOAD_SIZE                8
 #define KEY_SIZE                    8

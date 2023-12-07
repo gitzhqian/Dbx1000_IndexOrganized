@@ -17,17 +17,17 @@ void tpcc_query::init(uint64_t thd_id, workload* h_wl, uint64_t next_oid) {
   else
     gen_new_order(thd_id);
 #else
-    gen_new_order(thd_id, next_oid);
-//  if (x < 0.04)
-//    gen_stock_level(thd_id);
-//  else if (x < 0.04 + 0.04)
-//    gen_delivery(thd_id);
-//  else if (x < 0.04 + 0.04 + 0.04)
-//    gen_order_status(thd_id);
-//  else if (x < 0.04 + 0.04 + 0.04 + 0.43)
-//    gen_payment(thd_id);
-//  else
-//    gen_new_order(thd_id);
+  if (x < 0.04){
+      gen_stock_level(thd_id);
+  } else if (x < 0.04 + 0.04){
+      gen_delivery(thd_id);
+  } else if (x < 0.04 + 0.04 + 0.04){
+      gen_order_status(thd_id);
+  } else if (x < 0.04 + 0.04 + 0.04 + 0.43){
+      gen_payment(thd_id);
+  } else {
+      gen_new_order(thd_id, next_oid);
+  }
 #endif
 
 #if WORKLOAD == TPCC && TPCC_SPLIT_DELIVERY
@@ -80,19 +80,19 @@ void tpcc_query::gen_payment(uint64_t thd_id) {
     } else
       arg.c_w_id = arg.w_id;
   }
-  if (y > 100) {
-//  if (y <= 60) {
-    // by last name
-    arg.by_last_name = true;
-    Lastname(NURand(255, 0, 999, thd_id), arg.c_last);
-  } else {
+//  if (y > 100) {
+////  if (y <= 60) {
+//    // by last name
+//    arg.by_last_name = true;
+//    Lastname(NURand(255, 0, 999, thd_id), arg.c_last);
+//  } else {
     // by cust id
     arg.by_last_name = false;
     arg.c_id = NURand(1023, 1, g_cust_per_dist, thd_id);
-  }
+//  }
 }
 
-void tpcc_query::gen_new_order(uint64_t thd_id,   uint64_t next_oid) {
+void tpcc_query::gen_new_order(uint64_t thd_id, uint64_t next_oid) {
   type = TPCC_NEW_ORDER;
   tpcc_query_new_order& arg = args.new_order;
 
@@ -180,7 +180,8 @@ void tpcc_query::gen_order_status(uint64_t thd_id) {
     arg.w_id = URand(1, g_num_wh, thd_id);
   arg.d_id = URand(1, DIST_PER_WARE, thd_id);
 
-  int y = URand(1, 100, thd_id);
+  //int y = URand(1, 100, thd_id);
+  int y = URand(61, 100, thd_id);
   if (y <= 60) {
     // by last name
     arg.by_last_name = true;
@@ -189,7 +190,11 @@ void tpcc_query::gen_order_status(uint64_t thd_id) {
     // by cust id
     arg.by_last_name = false;
     arg.c_id = NURand(1023, 1, g_cust_per_dist, thd_id);
+
+//    arg.n_o_id = w_cid_oid[];
   }
+
+
 }
 
 void tpcc_query::gen_stock_level(uint64_t thd_id) {
@@ -211,6 +216,7 @@ void tpcc_query::gen_stock_level(uint64_t thd_id) {
     arg.w_id = URand(1, g_num_wh, thd_id);
   arg.d_id = URand(1, DIST_PER_WARE, thd_id);
   arg.threshold = URand(10, 20, thd_id);
+  arg.n_o_id = URand(1,3000,thd_id);
 }
 
 void tpcc_query::gen_delivery(uint64_t thd_id) {
@@ -222,9 +228,7 @@ void tpcc_query::gen_delivery(uint64_t thd_id) {
       arg.w_id = thd_id % g_num_wh + 1;
     else {
       do {
-        arg.w_id = RAND((g_num_wh + g_thread_cnt - 1) / g_thread_cnt, thd_id) *
-                       g_thread_cnt +
-                   thd_id + 1;
+        arg.w_id = RAND((g_num_wh + g_thread_cnt - 1) / g_thread_cnt, thd_id) * g_thread_cnt + thd_id + 1;
       } while (arg.w_id > g_num_wh);
       assert((arg.w_id - 1) % g_thread_cnt == thd_id);
     }
@@ -232,4 +236,5 @@ void tpcc_query::gen_delivery(uint64_t thd_id) {
     arg.w_id = URand(1, g_num_wh, thd_id);
   arg.o_carrier_id = URand(1, DIST_PER_WARE, thd_id);
   arg.ol_delivery_d = 2013;
+  arg.n_o_id = URand(2101,3000,thd_id);
 }

@@ -58,6 +58,9 @@ class tpcc_wl : public workload {
 
   uint32_t tid_lock[256];
 
+  //wid->did->cid->oid
+  std::map<uint64_t, std::map<uint64_t, std::map<uint64_t ,uint64_t>>> w_d_cid_oid;
+
  private:
   uint64_t num_wh;
   void init_tab_item();
@@ -148,10 +151,11 @@ class tpcc_txn_man : public txn_man {
   row_t* order_status_getCustomerByLastName(uint64_t w_id, uint64_t d_id,
                                             const char* c_last,
                                             uint64_t* out_c_id);
-  row_t* order_status_getLastOrder(uint64_t w_id, uint64_t d_id, uint64_t c_id);
+  row_t* order_status_getLastOrder( uint64_t w_id, uint64_t d_id, uint64_t c_id);
+  uint64_t order_status_getOrderId( uint64_t w_id, uint64_t d_id, uint64_t c_id);
   bool order_status_getOrderLines(uint64_t w_id, uint64_t d_id, int64_t o_id);
 
-  bool delivery_getNewOrder_deleteNewOrder(uint64_t d_id, uint64_t w_id,
+  bool delivery_getNewOrder_deleteNewOrder(uint64_t n_o_id, uint64_t d_id, uint64_t w_id,
                                            int64_t* out_o_id);
   row_t* delivery_getCId(int64_t no_o_id, uint64_t d_id, uint64_t w_id);
   void delivery_updateOrders(row_t* row, uint64_t o_carrier_id);

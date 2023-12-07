@@ -41,7 +41,7 @@ struct Item_no {
 struct tpcc_query_order_status {
   uint64_t w_id;
   uint64_t d_id;
-
+  uint64_t n_o_id;
   bool by_last_name;
   uint64_t c_id;              // by_last_name == true
   char c_last[LASTNAME_LEN];  // by_last_name == false
@@ -51,12 +51,14 @@ struct tpcc_query_stock_level {
   uint64_t w_id;
   uint64_t d_id;
   uint64_t threshold;
+    uint64_t n_o_id;
 };
 
 struct tpcc_query_delivery {
   uint64_t w_id;
   uint64_t o_carrier_id;
   uint64_t ol_delivery_d;
+  uint64_t n_o_id;
 };
 
 class tpcc_query : public base_query {

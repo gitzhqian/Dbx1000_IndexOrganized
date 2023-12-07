@@ -56,7 +56,7 @@ RC tpcc_wl::init_schema(const char* schema_file) {
 //  i_customer_last = hash_indexes["HASH_CUSTOMER_LAST_IDX"];
   i_stock = ordered_indexes["ORDERED_STOCK_IDX"];
   i_order = ordered_indexes["ORDERED_ORDER_IDX"];
-//  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
+  i_order_cust = ordered_indexes["ORDERED_ORDER_CUST_IDX"];
   i_neworder = ordered_indexes["ORDERED_NEWORDER_IDX"];
   i_orderline = ordered_indexes["ORDERED_ORDERLINE_IDX"];
 
@@ -506,13 +506,13 @@ void tpcc_wl::init_tab_order(uint64_t did, uint64_t wid) {
     row->set_value(O_OL_CNT, o_ol_cnt);
     row->set_value(O_ALL_LOCAL, uint64_t(1));
 
+    w_d_cid_oid[wid][did][cid] = oid; //wid->d_id_cid->oid
 #if TPCC_FULL
 #if AGGRESSIVE_INLINING
 #else
     index_insert(i_order, idx_primary, row, wh_to_part(wid));
+    //index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row, wh_to_part(wid));
 #endif
-//    index_insert(i_order_cust, orderCustKey(oid, cid, did, wid), row,
-//                 wh_to_part(wid));
 #endif
 
     // ORDER-LINE
