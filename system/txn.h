@@ -91,7 +91,7 @@ public:
                     rc = apply_index_changes(rc);
                 return rc;
             #endif
-                    // uint64_t starttime = get_sys_clock();
+            // uint64_t starttime = get_sys_clock();
             #if CC_ALG == OCC
                     if (rc == RCOK)
                     rc = occ_man.validate(this);

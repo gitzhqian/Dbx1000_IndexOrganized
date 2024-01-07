@@ -96,19 +96,22 @@ void Query_thd::init(workload * h_wl, int thread_id, std::array<uint64_t, 1000*1
 
     //generate insert keys
 //    size_t thread_insert_keys = g_synth_table_size;
-    size_t thread_insert_keys = MAX_TXN_PER_PART + ABORT_BUFFER_SIZE * 2;
     std::vector<uint64_t> random_insert_keys;
-    if (g_insert_perc >0) {
-        uint64_t table_size_ = g_synth_table_size / g_virtual_part_cnt;
-        uint64_t start_key = table_size_ + thread_id*thread_insert_keys;
-        uint64_t end_key = table_size_ + (thread_id+1)*thread_insert_keys;
-        for (uint64_t i = start_key; i < end_key; ++i)
-        {
-            random_insert_keys.push_back(i  +1);
-        }
-        //random the insert keys
-        std::random_shuffle(random_insert_keys.begin(), random_insert_keys.end());
+    if (g_insert_perc >0){
+       size_t thread_insert_keys = MAX_TXN_PER_PART*g_req_per_query + ABORT_BUFFER_SIZE * 2;
+       if (g_insert_perc >0) {
+           uint64_t table_size_ = g_synth_table_size / g_virtual_part_cnt;
+           uint64_t start_key = table_size_ + thread_id*thread_insert_keys;
+           uint64_t end_key = table_size_ + (thread_id+1)*thread_insert_keys;
+           for (uint64_t i = start_key; i < end_key; ++i)
+           {
+               random_insert_keys.push_back(i  +1);
+           }
+           //random the insert keys
+           std::random_shuffle(random_insert_keys.begin(), random_insert_keys.end());
+       }
     }
+
     uint64_t idx_inst = 0;
 
 #elif WORKLOAD == TPCC
