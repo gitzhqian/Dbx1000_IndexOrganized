@@ -41,3 +41,16 @@ Run
 The DBMS can be run with 
 
     ./rundb
+
+TableLayoutPaperCodes 
+------------
+/storage
+/concurrency_control
+/system
+/benchmarks
+
+TableLayoutPaperTest
+------------
+To test the database
+
+    python test_buffer.py
