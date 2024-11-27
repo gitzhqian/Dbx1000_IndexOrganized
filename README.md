@@ -1,6 +1,8 @@
 DBx1000-IndexOrganized
 =======
 
+DBx1000-IndexOrganized is developed based on DBx1000: https://github.com/yxymit/DBx1000.
+
 DBx1000 is an single node OLTP database management system (DBMS). 
 The goal of DBx1000 is to make DBMS scalable on future 1000-core processors. 
 We implemented all the seven classic concurrency control schemes in DBx1000. They exhibit different scalability properties under different workloads. 
@@ -11,6 +13,16 @@ The concurrency control scalability study is described in the following paper.
     Xiangyao Yu, George Bezerra, Andrew Pavlo, Srinivas Devadas, Michael Stonebraker
     http://www.vldb.org/pvldb/vol8/p209-yu.pdf
     
+The major changes made in this repository:
+
+  - added support for index organization and its optimizations.
+  
+  - implemented a B-tree index to support for scan queries.
+  
+  - added MDP-based method to generate optimized configurations atomically.
+  
+  - enhanced the implementation of tpcc benchmark to facilitate complete evaluation and assessment.
+
 Build & Test
 ------------
 
@@ -20,7 +32,7 @@ To build the database.
 
 To test the database
 
-    python test.py
+    ./rundb
     
 Configuration
 -------------
@@ -37,22 +49,3 @@ Configurations can also be specified as command argument at runtime. Run the fol
     
     ./rundb -h
 
-Run
----
-
-The DBMS can be run with 
-
-    ./rundb
-
-TableLayoutPaperCodes 
-------------
-/storage
-/concurrency_control
-/system
-/benchmarks
-
-TableLayoutPaperTest
-------------
-To test the database
-
-    python test_buffer.py
