@@ -15,13 +15,13 @@ The concurrency control scalability study is described in the following paper.
     
 The major changes made in this repository:
 
-  - added support for index organization and its optimizations.
+  - added support for index organization and optimized its performance.
   
-  - implemented a B-tree index to support for scan queries.
+  - developed a B-tree index to improve support for scan queries.
   
-  - added MDP-based method to generate optimized configurations atomically.
+  - implemented an MDP-based approach to generate optimized configurations in an atomic manner.
   
-  - enhanced the implementation of tpcc benchmark to facilitate complete evaluation and assessment.
+  - enhanced the TPCC benchmark implementation to enable comprehensive evaluation and assessment.
 
 Build & Test
 ------------
