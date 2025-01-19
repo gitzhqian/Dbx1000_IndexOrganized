@@ -17,7 +17,7 @@ The major changes made in this repository:
 
   - added support for index organization and optimized its performance.
   
-  - developed a B-tree index to improve support for scan queries.
+  - developed a B-tree index and a Be-tree index as ordered indexes.
   
   - implemented an MDP-based approach to generate optimized configurations in an atomic manner.
   
